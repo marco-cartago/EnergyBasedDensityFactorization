@@ -120,7 +120,7 @@ class TotalCorrelationEstimator:
 
         for _ in range(n_epochs):
             for batch in data:
-            self.train_step(batch)
+                self.train_step(batch)
 
     def to(self, device):
         self.joint_network.to(device)
