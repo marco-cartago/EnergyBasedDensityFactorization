@@ -6,19 +6,17 @@ class EntropyNetwork(nn.Module):
 
     """MI NEE implementation"""
 
-    def __init__(
-            self,
-            input_dim,
-            hidden_dim=128,
-            activation = nn.GELU(approximate="tanh")
-        ):
+    def __init__(self, input_dim, hidden_dim=128):
         super(EntropyNetwork, self).__init__()
+
+        self.activation = nn.GELU()
+
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            activation,
+            self.activation,
             nn.LayerNorm(hidden_dim),
             nn.Linear(hidden_dim, hidden_dim),
-            activation,
+            self.activation,
             nn.LayerNorm(hidden_dim),
             nn.Linear(hidden_dim, 1)
         )
@@ -38,6 +36,8 @@ class TotalCorrelationEstimator:
         self.joint_network = EntropyNetwork(d, hidden_dim)
         self.parameters =  list(self.marginal_networks.parameters()) + list(self.joint_network.parameters())
         self.optimizer = torch.optim.AdamW(self.parameters, lr=lr)
+
+        self.buffer = None
 
     def marginal_entropy(self, x, network):
         t = network(x)
@@ -68,6 +68,10 @@ class TotalCorrelationEstimator:
         tc.backward()
         self.optimizer.step()
         return tc.item()
+
+    def train_steps(self, x, N):
+        for _ in range(N):
+            self.train_step(x)
 
     def to(self, device):
         self.joint_network.to(device)
