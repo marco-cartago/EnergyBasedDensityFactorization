@@ -91,13 +91,18 @@ def train_one_epoch_TC(
     sampler: ReplaySampler,
     train_loader: DataLoader,
     optimizer: torch.optim.optimizer,
+    
     sample_steps: int,
     sample_step_size: float,
     sample_noise_std: float,
+    
     energy_reg: float,
     tc_regularizations,
     tc_estimator: TotalCorrelationEstimator,
+    tc_n_steps: int,
+
     scheduler=None,
+    
     clip_gradient: bool = False,
     train_noise: float | None = None,
     verbose: bool = False,
@@ -167,7 +172,8 @@ def train_one_epoch_TC(
         optimizer.step()
 
         # Update the TC estimator
-        tc_estimator.train_step(h_real.detach())
+        samples = torch.cat((h_real.detatch(), h_fake.detatch()))
+        tc_estimator.train_steps(samples, tc_n_steps)
 
         # LR scheduler step
         if scheduler is not None:
