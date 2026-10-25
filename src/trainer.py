@@ -9,6 +9,7 @@ from src.information import TotalCorrelationEstimator
 from src.train import train_one_epoch_TC
 
 def train_full_model(
+        
         model: nn.Module, 
         n_heads: int,
         model_folder: str,
