@@ -28,7 +28,7 @@ class ReplaySampler:
         # Replay buffer: tensors with shape [C,H,W]
         self.buffer = []
 
-    def langevin_step(self, x, step_size=10.0, noise_std=0.005, grad_clip=0.03):
+    def langevin_step(self, x, step_size=1.0, noise_std=0.005, grad_clip=0.03):
         x = x.detach()
         noise = torch.randn_like(x) * noise_std
         x = (x + noise).clamp(-1.0, 1.0)
@@ -106,9 +106,15 @@ class ReplaySampler:
     def update_buffer(
         self,
         samples: torch.Tensor,
+        only_recent=True
     ):
         """
         Store new MCMC samples.
+        
+        If `only_recent` is true only the most recent samples
+        produced by the chain get added to the buffer. 
+
+        Otherwise the newly generated randomly replace the old samples. 
         """
         # Keep only newest samples
 
@@ -116,7 +122,13 @@ class ReplaySampler:
         self.buffer.extend(list(samples))
 
         if len(self.buffer) > self.buffer_size:
-            self.buffer = self.buffer[-self.buffer_size :]
+            if only_recent:
+                self.buffer = self.buffer[-self.buffer_size :]
+
+            else:
+                random.shuffle(self.buffer)
+                self.buffer = self.buffer[-self.buffer_size :]
+
 
     def sample(
         self,
@@ -128,6 +140,7 @@ class ReplaySampler:
         """
         Generate negative samples.
         """
+
         # Choose initial states
         x = self.initialize_chains(
             batch_size,
