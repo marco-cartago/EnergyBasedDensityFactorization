@@ -1,6 +1,10 @@
+import random 
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from torch.utils import TensorDataset
 
 class EntropyNetwork(nn.Module):
 
@@ -12,12 +16,19 @@ class EntropyNetwork(nn.Module):
         self.activation = nn.GELU()
 
         self.net = nn.Sequential(
+            
             nn.Linear(input_dim, hidden_dim),
-            self.activation,
             nn.LayerNorm(hidden_dim),
+            self.activation,
+            
             nn.Linear(hidden_dim, hidden_dim),
-            self.activation,
             nn.LayerNorm(hidden_dim),
+            self.activation,
+
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            self.activation,
+            
             nn.Linear(hidden_dim, 1)
         )
 
@@ -26,18 +37,52 @@ class EntropyNetwork(nn.Module):
 
 class TotalCorrelationEstimator:
 
-    def __init__(self, d, hidden_dim=128, lr=1e-2, max_t=15.0):
-        self.d = d
+    def __init__(self, d, hidden_dim=128, lr=1e-3, max_t=15.0, buffer_size=1000, batch_size=128):
+
+        # Network and optimizer
         self.marginal_networks = nn.ModuleList(
             [EntropyNetwork(1, hidden_dim) for _ in range(d)]
         )
+        
         self.max_t = max_t
-        self.lr = lr
+        self.d = d
         self.joint_network = EntropyNetwork(d, hidden_dim)
         self.parameters =  list(self.marginal_networks.parameters()) + list(self.joint_network.parameters())
+        
         self.optimizer = torch.optim.AdamW(self.parameters, lr=lr)
+        self.lr = lr
 
-        self.buffer = None
+        # Buffer steps
+        self.buffer = []
+        self.buffer_size = buffer_size
+        self.batch_size = batch_size
+
+
+    def _update_buffer(
+        self,
+        samples: torch.Tensor,
+        only_recent=True
+    ):
+        """
+        Store new entropy samples.
+        
+        If `only_recent` is true only the most recent samples
+        produced by the chain get added to the buffer. 
+
+        Otherwise the newly generated randomly replace the old samples. 
+        """
+
+        samples = samples.detach().cpu()
+        self.buffer.extend(list(samples))
+
+        if len(self.buffer) > self.buffer_size:
+            if only_recent:
+                self.buffer = self.buffer[-self.buffer_size :]
+
+            else:
+                random.shuffle(self.buffer)
+                self.buffer = self.buffer[-self.buffer_size :]
+
 
     def marginal_entropy(self, x, network):
         t = network(x)
@@ -69,9 +114,13 @@ class TotalCorrelationEstimator:
         self.optimizer.step()
         return tc.item()
 
-    def train_steps(self, x, N):
-        for _ in range(N):
-            self.train_step(x)
+    def train_steps(self, x, n_epochs):
+        self._update_buffer(x) # Update with the new samples
+        data = TensorDataset(self.buffer, batch_size=self.batch_size)
+
+        for _ in range(n_epochs):
+            for batch in data:
+            self.train_step(batch)
 
     def to(self, device):
         self.joint_network.to(device)
