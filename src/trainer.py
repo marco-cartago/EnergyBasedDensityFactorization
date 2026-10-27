@@ -11,13 +11,14 @@ from src.train import train_one_epoch_TC
 def train_full_model(
         
         model: nn.Module, 
+        data_shape: tuple,
         n_heads: int,
         model_folder: str,
         img_shape: tuple,
 
         train_loader,
 
-        n_epochs          = 30,
+        n_epochs          = 5,
         ebm_learning_rate = 1e-3,
 
         sample_steps      = 50,
@@ -29,11 +30,11 @@ def train_full_model(
         energy_reg        = 1e-1,
         
         tc_regulariz      = 1e-2,
-        tc_lr             = 1e-3,
+        tc_lr             = 1e-5,
         tc_hidden_dim     = 64,
         tc_buffer_size    = 8192,
         tc_batch_size     = 128,
-        tc_n_steps        = 50,
+        tc_n_steps        = 100,
 
         device: torch.device = torch.device("cpu"),
     ):
@@ -53,7 +54,8 @@ def train_full_model(
     )
     
     total_correlation_estimator = TotalCorrelationEstimator(
-        n_heads, 
+        d           = n_heads,
+        data_shape  = data_shape, 
         hidden_dim  = tc_hidden_dim, 
         lr          = tc_lr,
         buffer_size = tc_buffer_size,
