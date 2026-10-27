@@ -90,7 +90,7 @@ def train_one_epoch_TC(
     model: nn.Module,
     sampler: ReplaySampler,
     train_loader: DataLoader,
-    optimizer: torch.optim.optimizer,
+    optimizer,
     
     sample_steps: int,
     sample_step_size: float,
@@ -172,7 +172,10 @@ def train_one_epoch_TC(
         optimizer.step()
 
         # Update the TC estimator
-        samples = torch.cat((h_real.detatch(), h_fake.detatch()))
+        samples = torch.cat((
+            h_real.detach().requires_grad_(False), 
+            h_fake.detach().requires_grad_(False)
+        ))
         tc_estimator.train_steps(samples, tc_n_steps)
 
         # LR scheduler step
@@ -214,7 +217,7 @@ def train_one_epoch_MINE(
     model: nn.Module,
     sampler: ReplaySampler,
     train_loader: DataLoader,
-    optimizer: torch.optim.optimizer,
+    optimizer,
     sample_steps: int,
     sample_step_size: float,
     sample_noise_std: float,
