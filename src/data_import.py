@@ -214,7 +214,7 @@ def load_lfw(
     if sharpen:
         kernel = torch.tensor(
             [[[[0, -1, 0], [-1, 5, -1], [0, -1, 0]]]], dtype=torch.float32
-            )
+        )
         X = F.conv2d(X, kernel, padding=1)
 
     X = torch.clamp(X, 0.0, 1.0)
@@ -231,3 +231,35 @@ def load_lfw(
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
 
     return train_loader, test_loader, class_names
+
+
+def circle_g_peaks(
+    n_peaks, points_per_gauss, var, batch_size, test_size=0.2, seed=0, shuffle=True
+):
+    rng = np.random.RandomState(seed)
+    angles = np.linspace(0, 2 * np.pi, num=n_peaks)[:-1]
+    means = np.stack((np.cos(angles), np.sin(angles)), axis=0)
+    points = [
+        rng.multivariate_normal(means[:, n], var * np.eye(2), size=(points_per_gauss,))
+        for n in range(n_peaks - 1)
+    ]
+    out = torch.tensor(
+        np.concat(points, axis=0)
+    ).unsqueeze(1).unsqueeze(1).to(torch.float32)
+
+    labels = torch.tensor(np.concat(
+        [np.ones(shape=(points_per_gauss,)) * n for n in range(n_peaks - 1)], axis=0
+        )
+    ).to(torch.float32)
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        out, labels, test_size=test_size, random_state=seed
+    )
+
+    train_ds = TensorDataset(X_train, y_train)
+    test_ds = TensorDataset(X_test, y_test)
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=shuffle)
+    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+    
+    return train_loader, test_loader
