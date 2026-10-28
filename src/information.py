@@ -10,7 +10,7 @@ class EntropyNetwork(nn.Module):
 
     """MI NEE implementation"""
 
-    def __init__(self, input_dim, hidden_dim=128):
+    def __init__(self, input_dim, hidden_dim=256):
         super(EntropyNetwork, self).__init__()
 
         self.activation = nn.GELU()
@@ -20,16 +20,12 @@ class EntropyNetwork(nn.Module):
             nn.Linear(input_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
             self.activation,
-            
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            self.activation,
 
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.LayerNorm(hidden_dim // 2),
             self.activation,
             
-            nn.Linear(hidden_dim, 1)
+            nn.Linear(hidden_dim // 2, 1)
         )
 
     def forward(self, x):
@@ -37,7 +33,12 @@ class EntropyNetwork(nn.Module):
 
 class TotalCorrelationEstimator:
 
-    def __init__(self, d, data_shape, hidden_dim=128, lr=1e-3, max_t=15.0, buffer_size=1000, batch_size=128):
+    def __init__(
+        self, 
+        d, data_shape, hidden_dim=16, 
+        lr=1e-3, max_t=15.0, buffer_size=1000, 
+        batch_size=128
+    ):
 
         # Network and optimizer
         self.marginal_networks = nn.ModuleList(
@@ -48,8 +49,10 @@ class TotalCorrelationEstimator:
         self.d = d
         self.data_shape = data_shape
         self.joint_network = EntropyNetwork(d, hidden_dim)
-        self.parameters =  list(self.marginal_networks.parameters()) + list(self.joint_network.parameters())
-        
+        self.parameters =  (
+            list(self.marginal_networks.parameters()) + 
+            list(self.joint_network.parameters())
+        )
         self.optimizer = torch.optim.AdamW(self.parameters, lr=lr)
         self.lr = lr
 
