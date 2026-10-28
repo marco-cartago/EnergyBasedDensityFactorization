@@ -22,19 +22,19 @@ def train_full_model(
         ebm_learning_rate = 1e-3,
 
         sample_steps      = 50,
-        sample_step_size  = 10.0,
-        sample_buf_sz     = 8192,
+        sample_step_size  = 0.1,
+        sample_buf_sz     = 2048,
         noise_frac        = 0.05,
 
         noise_std         = 0.005,
         energy_reg        = 1e-1,
         
-        tc_regulariz      = 1e-2,
-        tc_lr             = 1e-5,
+        tc_regulariz      = 1e-5,
+        tc_lr             = 1e-2,
         tc_hidden_dim     = 64,
-        tc_buffer_size    = 8192,
-        tc_batch_size     = 128,
-        tc_n_steps        = 100,
+        tc_buffer_size    = 512,
+        tc_batch_size     = 64,
+        tc_n_steps        = 50,
 
         device: torch.device = torch.device("cpu"),
     ):
