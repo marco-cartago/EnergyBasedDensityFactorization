@@ -166,3 +166,47 @@ class EBM_Old(nn.Module):
             energy = h_o.sum(dim=1)
 
         return energy, h_o
+
+class SmallEnergyHead2d(nn.Module):
+    
+    def __init__(self, image_shape: tuple[int, int, int]) -> None:
+        super().__init__()
+        input_dim = image_shape[0] * image_shape[1] * image_shape[2]
+
+        self.net = nn.Sequential(
+            nn.Flatten(),
+            nn.utils.spectral_norm(nn.Linear(input_dim, 32)),
+            nn.GELU(),
+            nn.utils.spectral_norm(nn.Linear(32, 1)),
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class SmallEBM2d(nn.Module):
+    def __init__(
+        self,
+        image_shape: tuple[int, int, int] = (1, 1, 2),
+        n_heads: int = 4,
+        batch_size: int = 32,
+    ) -> None:
+        super().__init__()
+        self.in_dim = image_shape
+        self.n_heads = n_heads
+
+        self.heads = nn.ModuleList(
+            [SmallEnergyHead2d(image_shape) for _ in range(n_heads)]
+        )
+
+    def forward(self, x: torch.Tensor, head_idx: int | None = None):
+        if head_idx is not None:
+            h_o = self.heads[head_idx](x).squeeze(-1)
+        else:
+            h_o = torch.stack(
+                [head(x).squeeze(-1) for head in self.heads],
+                dim=1,
+            )
+
+        energy = h_o if h_o.dim() == 1 else h_o.sum(dim=1)
+        return energy, h_o
