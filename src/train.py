@@ -295,6 +295,7 @@ def train_one_epoch_MINE(
             scheduler.step()
 
     n = len(train_loader)
+            
     traininfo = {
         "e_loss": running_loss / n,
         "e_cd": running_cd / n,
@@ -309,6 +310,7 @@ def train_one_epoch_MINE(
         "l_e_real": l_running_e_real,
         "l_e_fake": l_running_e_fake,
     }
+
     if verbose:
         print(f"  CD:     {running_cd / n:.4f}")
         print(f"  Reg:    {running_reg / n:.4f}")
