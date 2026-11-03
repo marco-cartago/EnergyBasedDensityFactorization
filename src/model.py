@@ -4,47 +4,75 @@ import torch.nn.functional as F
 
 import math
 
+class SpectralResBlock(nn.Module):
+    """
+    A residual block that maintains Lipschitz continuity via Spectral Norm.
+    """
+    def __init__(self, channels):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.utils.spectral_norm(nn.Conv2d(channels, channels, 3, padding=1)),
+            nn.GELU(),
+            nn.utils.spectral_norm(nn.Conv2d(channels, channels, 3, padding=1)),
+            nn.GELU()
+        )
+        # LayerNorm is better for EBMs than BatchNorm
+        self.norm = nn.LayerNorm([channels, 1, 1]) # Adjusted for GAP or specific size
+
+    def forward(self, x):
+        # The skip connection is the key to training deep EBMs
+        return x + self.block(x)
+
+class SpectralDownsample(nn.Module):
+    """
+    Reduces spatial resolution and increases channel depth.
+    """
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.conv = nn.utils.spectral_norm(
+            nn.Conv2d(in_channels, out_channels, kernel_size=4, stride=2, padding=1)
+        )
+        self.act = nn.GELU()
+
+    def forward(self, x):
+        return self.act(self.conv(x))
+
 class EnergyHead(nn.Module):
-
-    """
-    Single indipendent head for the general model. A
-    simple convolutional network.
-    """
-
-    def __init__(self, image_shape: tuple[int]):
+    def __init__(self, image_shape: tuple, blocks_per_stage: int = 2):
         super().__init__()
         c, h, w = image_shape
 
-        # first three conv blocks
-        self.conv = nn.Sequential(
-            nn.utils.spectral_norm(nn.Conv2d(c, 16, 3, padding=1)),
-            nn.GELU(),
-            nn.utils.spectral_norm(nn.Conv2d(16, 32, 4, stride=2, padding=1)),
-            nn.GELU(),
-            nn.utils.spectral_norm(nn.Conv2d(32, 64, 4, stride=2, padding=1)),
+        # --- STEM ---
+        # Initial projection to get to a base channel width
+        self.stem = nn.Sequential(
+            nn.utils.spectral_norm(nn.Conv2d(c, 32, 3, padding=1)),
             nn.GELU()
         )
 
-        # compute output spatial size
-        h_out = math.floor((h + 2*1 - 3) / 1 + 1)
-        w_out = math.floor((w + 2*1 - 3) / 1 + 1)
-
-        h_out = math.floor((h_out + 2*1 - 4) / 2 + 1)
-        w_out = math.floor((w_out + 2*1 - 4) / 2 + 1)
-
-        h_out = math.floor((h_out + 2*1 - 4) / 2 + 1)
-        w_out = math.floor((w_out + 2*1 - 4) / 2 + 1)
-
-        self.flat_dim = 64 * h_out * w_out
-
-        self.fc = nn.Sequential(
-            nn.utils.spectral_norm(nn.Linear(self.flat_dim, 7 * 7)),
-            nn.GELU(),
-            nn.utils.spectral_norm(nn.Linear(7 * 7, 1))
+        # --- STAGES ---
+        # Stage 1: 32 channels
+        self.stage1 = nn.Sequential(
+            *[SpectralResBlock(32) for _ in range(blocks_per_stage)],
+            SpectralDownsample(32, 64)
         )
 
+        # Stage 2: 64 channels
+        self.stage2 = nn.Sequential(
+            *[SpectralResBlock(64) for _ in range(blocks_per_stage)],
+            SpectralDownsample(64, 128)
+        )
+
+        # --- GLOBAL HEAD ---
+        # Collapses any spatial dimension to 1x1
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.utils.spectral_norm(nn.Linear(128, 1))
+
     def forward(self, x: torch.Tensor):
-        x = self.conv(x)
+        x = self.stem(x)
+        x = self.stage1(x)
+        x = self.stage2(x)
+        x = self.gap(x)
+        
         x = torch.flatten(x, 1)
         return self.fc(x)
 
