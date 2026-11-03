@@ -42,7 +42,7 @@ def train_full_model(
     optimizer = torch.optim.Adam(
         model.parameters(), 
         lr=ebm_learning_rate, 
-        # betas=(0.000, 0.999)
+        betas=(0.000, 0.999)
     )
 
     sampler = ReplaySampler(
