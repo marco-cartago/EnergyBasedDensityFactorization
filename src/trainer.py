@@ -14,7 +14,6 @@ def train_full_model(
         data_shape: tuple,
         n_heads: int,
         model_folder: str,
-        img_shape: tuple,
 
         train_loader,
 
@@ -29,12 +28,13 @@ def train_full_model(
         noise_std         = 0.005,
         energy_reg        = 1e-1,
         
-        tc_regulariz      = 1e-5,
+        tc_regulariz      = 1e-3,
         tc_lr             = 1e-2,
         tc_hidden_dim     = 64,
         tc_buffer_size    = 512,
         tc_batch_size     = 64,
-        tc_n_steps        = 50,
+        tc_n_steps        = None,
+        tc_abs_tol        = 1e-6,
 
         device: torch.device = torch.device("cpu"),
     ):
@@ -47,7 +47,7 @@ def train_full_model(
 
     sampler = ReplaySampler(
         model, 
-        img_shape      = img_shape, 
+        img_shape      = data_shape, 
         buffer_size    = sample_buf_sz, 
         noise_fraction = noise_frac, 
         device         = device
@@ -77,18 +77,20 @@ def train_full_model(
             sample_noise_std   = noise_std,
             energy_reg         = energy_reg,
             tc_regularizations = tc_regulariz,
-            tc_n_steps         = tc_n_steps,     
+            tc_n_steps         = tc_n_steps,
+            tc_abs_tol         = tc_abs_tol,     
             
             tc_estimator       = total_correlation_estimator,
             device             = device
         )
+        
         print(f"Epoch {epoch+1}, Loss: {epoch_loss:.4f}")
         traininfos.append(traininfo)
 
         if epoch % 5 == 0:
             model_file = (
                 f"./models/{model_folder}/" + 
-                f"EBM_{epoch}_epochs_{img_shape}_shape_{len(model.heads)}_heads_{time_ns()}"
+                f"EBM_{epoch}_epochs_{data_shape}_shape_{len(model.heads)}_heads_{time_ns()}"
             )
             traininf_f = model_file + ".tinfo"
             modelf = model_file + ".pth"
