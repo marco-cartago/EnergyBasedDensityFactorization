@@ -14,9 +14,10 @@ BATCH_SIZE = 32
 
 IM_SZ_2D = (1, 1, 2)
 IM_SZ_OLI = (1, 64, 64)
+IM_SZ_DIG = (1, 8, 8)
 
 N_HEAD = 3
-N_EPOCH = 10
+N_EPOCH = 50
 
 print(f"Currently using {DEVICE}")
 
@@ -38,14 +39,15 @@ train_loader, test_loader = load_olivetti(
 
 # model_2d = SmallEBM2d(image_shape=IM_SZ_2D, n_heads=N_HEAD).to(DEVICE)
 model_oli = EBM(image_shape=IM_SZ_OLI, n_heads=3, batch_size=BATCH_SIZE)
-summary(model_oli, (1, 64, 64))
+summary(model_oli, IM_SZ_OLI)
 
 train_full_model(
-    model        = model_oli,
-    data_shape   = IM_SZ_OLI,
-    n_heads      = N_HEAD,
-    model_folder = "olivetti",
-    train_loader = train_loader,
-    n_epochs     = N_EPOCH,
-    device       = DEVICE
+    model             = model_oli,
+    tc_regulariz      = 0.0,
+    data_shape        = IM_SZ_OLI,
+    n_heads           = N_HEAD,
+    model_folder      = "olivetti",
+    train_loader      = train_loader,
+    n_epochs          = N_EPOCH,
+    device            = DEVICE
 )
