@@ -6,7 +6,7 @@ import math
 
 class SpectralResBlock(nn.Module):
     """
-    A residual block that maintains Lipschitz continuity via Spectral Norm.
+    A residual block
     """
     def __init__(self, channels):
         super().__init__()
@@ -16,17 +16,12 @@ class SpectralResBlock(nn.Module):
             nn.utils.spectral_norm(nn.Conv2d(channels, channels, 3, padding=1)),
             nn.GELU()
         )
-        # LayerNorm is better for EBMs than BatchNorm
-        self.norm = nn.LayerNorm([channels, 1, 1]) # Adjusted for GAP or specific size
+        self.norm = nn.LayerNorm([channels, 1, 1])
 
     def forward(self, x):
-        # The skip connection is the key to training deep EBMs
         return x + self.block(x)
 
 class SpectralDownsample(nn.Module):
-    """
-    Reduces spatial resolution and increases channel depth.
-    """
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.conv = nn.utils.spectral_norm(
@@ -42,28 +37,19 @@ class EnergyHead(nn.Module):
         super().__init__()
         c, h, w = image_shape
 
-        # --- STEM ---
-        # Initial projection to get to a base channel width
         self.stem = nn.Sequential(
             nn.utils.spectral_norm(nn.Conv2d(c, 32, 3, padding=1)),
             nn.GELU()
         )
-
-        # --- STAGES ---
-        # Stage 1: 32 channels
         self.stage1 = nn.Sequential(
             *[SpectralResBlock(32) for _ in range(blocks_per_stage)],
             SpectralDownsample(32, 64)
         )
-
-        # Stage 2: 64 channels
         self.stage2 = nn.Sequential(
             *[SpectralResBlock(64) for _ in range(blocks_per_stage)],
             SpectralDownsample(64, 128)
         )
 
-        # --- GLOBAL HEAD ---
-        # Collapses any spatial dimension to 1x1
         self.gap = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.utils.spectral_norm(nn.Linear(128, 1))
 
@@ -72,7 +58,7 @@ class EnergyHead(nn.Module):
         x = self.stage1(x)
         x = self.stage2(x)
         x = self.gap(x)
-        
+
         x = torch.flatten(x, 1)
         return self.fc(x)
 
