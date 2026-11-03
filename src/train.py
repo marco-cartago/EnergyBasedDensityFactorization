@@ -99,7 +99,8 @@ def train_one_epoch_TC(
     energy_reg: float,
     tc_regularizations,
     tc_estimator: TotalCorrelationEstimator,
-    tc_n_steps: int,
+    tc_n_steps: int|None,
+    tc_abs_tol: float|None,
 
     scheduler=None,
     
@@ -176,11 +177,13 @@ def train_one_epoch_TC(
             h_real.detach().requires_grad_(False), 
             h_fake.detach().requires_grad_(False)
         ))
-        tc_estimator.train_steps(samples, tc_n_steps)
+        tc_estimator.update_buffer(samples)
 
         # LR scheduler step
         if scheduler is not None:
             scheduler.step()
+    
+    tc_estimator.train_steps(tc_n_steps, tc_abs_tol)
 
     n = len(train_loader)
 
