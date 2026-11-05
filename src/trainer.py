@@ -26,7 +26,7 @@ def train_full_model(
     energy_reg=1e-1,
     tc_regulariz=1e-3,
     tc_lr=1e-2,
-    tc_hidden_dim=64,
+    tc_hidden_dim=128,
     tc_buffer_size=512,
     tc_batch_size=64,
     tc_n_steps=None,
