@@ -26,6 +26,6 @@ def head_correlation_penalty(H: torch.Tensor):
 def total_correlation_TC(
         head_optputs: torch.Tensor,
         tc_estimator: TotalCorrelationEstimator
-        ):
+    ):
     tc = tc_estimator.total_correlation(head_optputs)
     return tc
