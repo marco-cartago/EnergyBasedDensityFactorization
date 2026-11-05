@@ -126,6 +126,7 @@ def train_one_epoch_TC(
 
     for x_real, _ in tqdm.tqdm(train_loader):
         x_real = x_real.to(device)
+        
         if train_noise is not None:
             small_noise = torch.randn_like(x_real) * train_noise
             x_real.add_(small_noise).clamp_(min=-1.0, max=1.0)
