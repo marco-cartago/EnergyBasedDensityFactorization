@@ -89,6 +89,10 @@ class EBM(nn.Module):
 
         return energy, h_o
 
+    def to(self, device):
+        for energyhead in self.heads:
+            energyhead.to(device) 
+
 class SmallEnergyHead(nn.Module):
     def __init__(self, image_shape: tuple[int]) -> None:
         super().__init__()
