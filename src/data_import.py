@@ -2,7 +2,7 @@ from torch.utils.data import DataLoader, Subset, Dataset
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Subset, random_split, TensorDataset
 from disentanglement_datasets import DSprites
-from sklearn.datasets import fetch_olivetti_faces, fetch_lfw_people
+from sklearn.datasets import fetch_olivetti_faces, fetch_lfw_people, load_digits
 from sklearn.model_selection import train_test_split
 
 import torch
@@ -56,7 +56,7 @@ def load_fashion_mnist(batch_size=64, shuffle=True, class_subset=None):
     return train_loader, test_loader
 
 
-def load_mnist_digit(batch_size=64, shuffle=True, digit=None):
+def load_mnist_digit(batch_size=64, shuffle=True, class_subset=None):
     """
     Load MNIST dataset with optional digit filtering.
     Args:
@@ -79,10 +79,12 @@ def load_mnist_digit(batch_size=64, shuffle=True, digit=None):
     test_set = datasets.MNIST(
         root="./data", train=False, download=True, transform=transform
     )
-    if digit is not None:
+    if class_subset is not None:
         # Filter indices where label is the specified digit
-        train_idx = [i for i in range(len(train_set)) if train_set[i][1] == digit]
-        test_idx = [i for i in range(len(test_set)) if test_set[i][1] == digit]
+        train_idx = [
+            i for i in range(len(train_set)) if train_set[i][1] in class_subset
+        ]
+        test_idx = [i for i in range(len(test_set)) if test_set[i][1] in class_subset]
 
         train_set = Subset(train_set, train_idx)
         test_set = Subset(test_set, test_idx)
@@ -214,7 +216,7 @@ def load_lfw(
     if sharpen:
         kernel = torch.tensor(
             [[[[0, -1, 0], [-1, 5, -1], [0, -1, 0]]]], dtype=torch.float32
-            )
+        )
         X = F.conv2d(X, kernel, padding=1)
 
     X = torch.clamp(X, 0.0, 1.0)
@@ -231,3 +233,75 @@ def load_lfw(
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
 
     return train_loader, test_loader, class_names
+
+
+def circle_g_peaks(
+    n_peaks, points_per_gauss, var, batch_size, test_size=0.2, seed=0, shuffle=True
+):
+    rng = np.random.RandomState(seed)
+    angles = np.linspace(0, 2 * np.pi, num=n_peaks)[:-1]
+    means = np.stack((np.cos(angles), np.sin(angles)), axis=0)
+    points = [
+        rng.multivariate_normal(means[:, n], var * np.eye(2), size=(points_per_gauss,))
+        for n in range(n_peaks - 1)
+    ]
+    out = (
+        torch.tensor(np.concat(points, axis=0))
+        .unsqueeze(1)
+        .unsqueeze(1)
+        .to(torch.float32)
+    )
+
+    labels = torch.tensor(
+        np.concat(
+            [np.ones(shape=(points_per_gauss,)) * n for n in range(n_peaks - 1)], axis=0
+        )
+    ).to(torch.float32)
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        out, labels, test_size=test_size, random_state=seed
+    )
+
+    train_ds = TensorDataset(X_train, y_train)
+    test_ds = TensorDataset(X_test, y_test)
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=shuffle)
+    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+
+    return train_loader, test_loader
+
+
+def load_digits_data(batch_size: int = 64, shuffle: bool = True):
+    """
+    Load the sklearn digits dataset.
+
+    Args:
+        batch_size (int): Batch size for the loaders.
+        shuffle (bool): Shuffle the training set.
+
+    Returns:
+        train_loader, test_loader: DataLoaders for train / test splits.
+    """
+    data = load_digits()
+    images = data.images
+    targets = data.target
+
+    n_samples = images.shape[0]
+    n_train = int(0.7 * n_samples)
+
+    train_imgs, test_imgs = images[:n_train], images[n_train:]
+    train_lbls, test_lbls = targets[:n_train], targets[n_train:]
+
+    # Convert to tensors and add channel dimension (batch, 1, 8, 8)
+    train_imgs = torch.from_numpy(train_imgs).unsqueeze(1).float()
+    test_imgs = torch.from_numpy(test_imgs).unsqueeze(1).float()
+    train_lbls = torch.from_numpy(train_lbls).long()
+    test_lbls = torch.from_numpy(test_lbls).long()
+
+    train_set = TensorDataset(train_imgs, train_lbls)
+    test_set = TensorDataset(test_imgs, test_lbls)
+
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=shuffle)
+    test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False)
+
+    return train_loader, test_loader

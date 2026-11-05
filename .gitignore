@@ -1,6 +1,7 @@
 /__pycache__/
 /venv/
 /.venv/
+/.env/
 /models/
 /data/
 *.pyc

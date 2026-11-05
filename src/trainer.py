@@ -1,0 +1,108 @@
+import pickle
+from time import time_ns
+
+import torch
+import torch.nn as nn
+
+from src.sampler import ReplaySampler
+from src.information import TotalCorrelationEstimator
+from src.train import train_one_epoch_TC
+import torch.optim as O
+
+
+def train_full_model(
+    model: nn.Module,
+    data_shape: tuple,
+    n_heads: int,
+    model_folder: str,
+    train_loader,
+    n_epochs=5,
+    ebm_learning_rate=1e-3,
+    sample_steps=50,
+    sample_step_size=0.1,
+    sample_buf_sz=2048,
+    noise_frac=0.05,
+    noise_std=0.005,
+    energy_reg=1e-1,
+    tc_regulariz=1e-3,
+    tc_lr=1e-2,
+    tc_hidden_dim=64,
+    tc_buffer_size=512,
+    tc_batch_size=64,
+    tc_n_steps=None,
+    tc_abs_tol=1e-6,
+    device: torch.device = torch.device("cpu"),
+):
+
+    model.to(device)
+
+    optimizer = O.Adam(model.parameters(), lr=ebm_learning_rate, betas=(0.000, 0.999))
+
+    scheduler = O.lr_scheduler.ChainedScheduler(
+        [
+            O.lr_scheduler.LinearLR(
+                optimizer,
+                start_factor=ebm_learning_rate * 1e-2,
+                end_factor=ebm_learning_rate,
+                total_iters=10,
+            ),
+            O.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs, eta_min=0),
+        ]
+    )
+
+    sampler = ReplaySampler(
+        model,
+        img_shape=data_shape,
+        buffer_size=sample_buf_sz,
+        noise_fraction=noise_frac,
+        device=device,
+    )
+
+    total_correlation_estimator = TotalCorrelationEstimator(
+        d=n_heads,
+        data_shape=data_shape,
+        hidden_dim=tc_hidden_dim,
+        lr=tc_lr,
+        buffer_size=tc_buffer_size,
+        batch_size=tc_batch_size,
+        device=device,
+    )
+    total_correlation_estimator.to(device)
+
+    traininfos = []
+
+    for epoch in range(n_epochs + 1):
+        epoch_loss, traininfo = train_one_epoch_TC(
+            model,
+            sampler,
+            train_loader,
+            optimizer,
+            sample_steps=sample_steps,
+            sample_step_size=sample_step_size,
+            sample_noise_std=noise_std,
+            energy_reg=energy_reg,
+            tc_regularizations=tc_regulariz,
+            tc_n_steps=tc_n_steps,
+            tc_abs_tol=tc_abs_tol,
+            tc_estimator=total_correlation_estimator,
+            device=device,
+        )
+        scheduler.step()
+
+        print(f"Epoch {epoch+1}, Loss: {epoch_loss:.4f}")
+        traininfos.append(traininfo)
+
+        if epoch % 5 == 0:
+            model_file = (
+                f"./models/{model_folder}/"
+                + f"EBM_{epoch}_epochs_{data_shape}"
+                + f"_shape_{len(model.heads)}_heads_{time_ns()}"
+            )
+            traininf_f = model_file + ".tinfo"
+            modelf = model_file + ".pth"
+
+            with open(traininf_f, "b+w") as f:
+                pickle.dump(traininfos, f)
+
+            with open(modelf, "b+w") as f:
+                torch.save(model.state_dict(), f)

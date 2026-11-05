@@ -111,7 +111,7 @@ def diagnose(
         print("\n[5] Replay buffer")
         print(f"  Buffer size: {len(sampler.buffer)} / {sampler.buffer_size}")
         if len(sampler.buffer) > 0:
-            buf = torch.stack(sampler.buffer[:64])
+            buf = sampler.buffer[:64]
             print(
                 f"  Buffer samples  →  mean={buf.mean():.4f},  std={buf.std():.4f},  min={buf.min():.4f},  max={buf.max():.4f}"
             )
