@@ -8,7 +8,6 @@ from src.losses import cd_loss, head_correlation_penalty, total_correlation_TC
 from src.sampler import ReplaySampler
 
 
-
 def train_one_epoch(
     model: nn.Module,
     sampler: ReplaySampler,
@@ -91,19 +90,15 @@ def train_one_epoch_TC(
     sampler: ReplaySampler,
     train_loader: DataLoader,
     optimizer,
-    
     sample_steps: int,
     sample_step_size: float,
     sample_noise_std: float,
-    
     energy_reg: float,
     tc_regularizations,
     tc_estimator: TotalCorrelationEstimator,
-    tc_n_steps: int|None,
-    tc_abs_tol: float|None,
-
+    tc_n_steps: int | None,
+    tc_abs_tol: float | None,
     scheduler=None,
-    
     clip_gradient: bool = False,
     train_noise: float | None = None,
     verbose: bool = False,
@@ -126,7 +121,7 @@ def train_one_epoch_TC(
 
     for x_real, _ in tqdm.tqdm(train_loader):
         x_real = x_real.to(device)
-        
+
         if train_noise is not None:
             small_noise = torch.randn_like(x_real) * train_noise
             x_real.add_(small_noise).clamp_(min=-1.0, max=1.0)
@@ -174,17 +169,19 @@ def train_one_epoch_TC(
         optimizer.step()
 
         # Update the TC estimator
-        samples = torch.cat((
-            h_real.detach().requires_grad_(False), 
-            h_fake.detach().requires_grad_(False)
-        ))
-        tc_estimator.update_buffer(samples)
+        samples = torch.cat(
+            (
+                h_real.detach().requires_grad_(False),
+                h_fake.detach().requires_grad_(False),
+            )
+        )
+        # tc_estimator.update_buffer(samples)
 
         # LR scheduler step
         if scheduler is not None:
             scheduler.step()
-    
-    tc_estimator.train_steps(tc_n_steps, tc_abs_tol)
+
+    # tc_estimator.train_steps(tc_n_steps, tc_abs_tol)
 
     n = len(train_loader)
 
@@ -296,7 +293,7 @@ def train_one_epoch_MINE(
             scheduler.step()
 
     n = len(train_loader)
-            
+
     traininfo = {
         "e_loss": running_loss / n,
         "e_cd": running_cd / n,
