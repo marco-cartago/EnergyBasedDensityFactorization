@@ -115,7 +115,7 @@ class EnHead2(nn.Module):
         return self.net(x)
 
 
-class EBM2(nn.Model):
+class EBM2(nn.Module):
 
     def __init__(self, n_head, hid_dim, depth):
         super().__init__()
