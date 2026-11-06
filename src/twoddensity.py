@@ -71,6 +71,10 @@ def mog_dataset(
             x[idx] = _sample_truncated(rng, centers[k], covs[k], len(idx))
 
     y = comp // comps_per_class  # component -> class
+    perm = rng.permutation(len(x))
+    x = x[perm]
+    y = y[perm]
+
     return (
         torch.from_numpy(x).float(),
         torch.from_numpy(y).long(),
