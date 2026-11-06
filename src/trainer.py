@@ -95,7 +95,7 @@ def train_full_model(
         if epoch % 5 == 0:
             model_file = (
                 f"./models/{model_folder}/"
-                + f"EBM_{epoch}_epochs_{data_shape}"
+                + f"{model.__class__.__name__}_{epoch}_epochs_{data_shape}"
                 + f"_shape_{len(model.heads)}_heads_{time_ns()}"
             )
             traininf_f = model_file + ".tinfo"
