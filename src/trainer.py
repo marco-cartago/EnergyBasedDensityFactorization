@@ -3,6 +3,7 @@ from time import time_ns
 
 import torch
 import torch.nn as nn
+import tqdm
 
 from src.sampler import ReplaySampler
 from src.information import TotalCorrelationEstimator
@@ -18,37 +19,38 @@ def train_full_model(
     train_loader,
     n_epochs=5,
     ebm_learning_rate=1e-3,
-    sample_steps=50,
+    sample_steps=20,
     sample_step_size=0.1,
-    sample_buf_sz=2048,
+    sample_buf_sz=128,
     noise_frac=0.05,
     noise_std=0.005,
     energy_reg=1e-1,
     tc_regulariz=1e-3,
-    tc_lr=1e-2,
-    tc_hidden_dim=128,
-    tc_buffer_size=512,
+    tc_lr=1e-4,
+    tc_hidden_dim=8,
+    tc_buffer_size=128,
     tc_batch_size=64,
     tc_n_steps=None,
     tc_abs_tol=1e-6,
     device: torch.device = torch.device("cpu"),
+    verbose=False,
 ):
 
     model.to(device)
 
     optimizer = O.Adam(model.parameters(), lr=ebm_learning_rate, betas=(0.000, 0.999))
 
-    scheduler = O.lr_scheduler.ChainedScheduler(
-        [
-            O.lr_scheduler.LinearLR(
-                optimizer,
-                start_factor=ebm_learning_rate * 1e-2,
-                end_factor=ebm_learning_rate,
-                total_iters=10,
-            ),
-            O.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs, eta_min=0),
-        ]
-    )
+    scheduler = None  # O.lr_scheduler.ChainedScheduler(
+    #     [
+    #         O.lr_scheduler.LinearLR(
+    #             optimizer,
+    #             start_factor=ebm_learning_rate * 1e-2,
+    #             end_factor=ebm_learning_rate,
+    #             total_iters=10,
+    #         ),
+    #         O.lr_scheduler.Fixed(optimizer, T_max=n_epochs, eta_min=0),
+    #     ]
+    # )
 
     sampler = ReplaySampler(
         model,
@@ -71,7 +73,7 @@ def train_full_model(
 
     traininfos = []
 
-    for epoch in range(n_epochs + 1):
+    for epoch in tqdm.tqdm(range(n_epochs + 1)):
         epoch_loss, traininfo = train_one_epoch_TC(
             model,
             sampler,
@@ -87,12 +89,15 @@ def train_full_model(
             tc_estimator=total_correlation_estimator,
             device=device,
         )
-        scheduler.step()
+        if scheduler is not None:
+            scheduler.step()
 
-        print(f"Epoch {epoch+1}, Loss: {epoch_loss:.4f}")
+        if verbose:
+            print(f"Epoch {epoch+1}, Loss: {epoch_loss:.4f}")
+
         traininfos.append(traininfo)
 
-        if epoch % 5 == 0 or epoch == n_epochs:
+        if epoch == n_epochs:
             model_file = (
                 f"./models/{model_folder}/"
                 + f"{model.__class__.__name__}_{epoch}_epochs_{data_shape}"

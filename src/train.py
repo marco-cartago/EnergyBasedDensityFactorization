@@ -119,7 +119,7 @@ def train_one_epoch_TC(
     l_running_e_real = []
     l_running_e_fake = []
 
-    for x_real, _ in tqdm.tqdm(train_loader):
+    for x_real, _ in train_loader:
         x_real = x_real.to(device)
 
         if train_noise is not None:
