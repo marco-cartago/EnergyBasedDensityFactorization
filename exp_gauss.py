@@ -7,8 +7,6 @@ from src.twoddensity import mog_dataset
 from src.model import EBM2
 from src.trainer import train_full_model
 
-from icecream import ic
-
 # Parameters
 # -------------------------------------------------------------------------------------- #
 
@@ -22,12 +20,14 @@ N_CLASSES = 3
 
 # Training
 BATCH_SIZE = 32
+N_EPOCH = 200
+TRAIN_PER = 0.8
 SHUFFLE = False
 
 # Model
 N_HEAD = 3
-N_EPOCH = 150
-TRAIN_PER = 0.8
+HID_DIM_SIZE = 16
+NETWORK_DEPTH = 3
 
 # Network stuff
 # -------------------------------------------------------------------------------------- #
@@ -49,7 +49,6 @@ print(" [✓]")
 sep = int(N_SAMPLES * TRAIN_PER)
 Xtrain, Xtest, ytrain, ytest = X[:sep], X[sep:], y[:sep], y[sep:]
 
-ic(X.shape, y.shape)
 
 print(f"CREATING DATASET", end="")
 data_train, data_test = D.TensorDataset(Xtrain, ytrain), D.TensorDataset(Xtest, ytest)
@@ -58,7 +57,7 @@ test_dataloader = D.DataLoader(data_test, batch_size=BATCH_SIZE)
 print(" [✓]")
 
 print("CREATING AND COMPILING MODEL", end="")
-model_gauss = EBM2(n_head=N_HEAD, hid_dim=8, depth=2)
+model_gauss = EBM2(n_head=N_HEAD, hid_dim=HID_DIM_SIZE, depth=NETWORK_DEPTH)
 model_gauss.to(DEVICE)
 model_gauss.compile()
 print(" [✓]")
@@ -76,4 +75,5 @@ train_full_model(
     train_loader=train_dataloader,
     n_epochs=N_EPOCH,
     device=DEVICE,
+    verbose=False,
 )
