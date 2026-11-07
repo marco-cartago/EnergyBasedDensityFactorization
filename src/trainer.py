@@ -92,7 +92,7 @@ def train_full_model(
         print(f"Epoch {epoch+1}, Loss: {epoch_loss:.4f}")
         traininfos.append(traininfo)
 
-        if epoch % 5 == 0:
+        if epoch % 5 == 0 or epoch == n_epochs:
             model_file = (
                 f"./models/{model_folder}/"
                 + f"{model.__class__.__name__}_{epoch}_epochs_{data_shape}"
