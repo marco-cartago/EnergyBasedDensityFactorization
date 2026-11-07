@@ -1,7 +1,8 @@
 from torch.utils.data import DataLoader, Subset, Dataset
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Subset, random_split, TensorDataset
-from disentanglement_datasets import DSprites
+
+# from disentanglement_datasets import DSprites
 from sklearn.datasets import fetch_olivetti_faces, fetch_lfw_people, load_digits
 from sklearn.model_selection import train_test_split
 
