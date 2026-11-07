@@ -50,11 +50,11 @@ class EnergyHead(nn.Module):
         )
         self.stage2 = nn.Sequential(
             *[SpectralResBlock(64) for _ in range(blocks_per_stage)],
-            SpectralDownsample(64, 64)
+            SpectralDownsample(64, 128)
         )
 
         self.gap = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.utils.spectral_norm(nn.Linear(64, 1))
+        self.fc = nn.utils.spectral_norm(nn.Linear(128, 1))
 
     def forward(self, x: torch.Tensor):
         x = self.stem(x)
@@ -93,6 +93,10 @@ class EBM(nn.Module):
 
         return energy, h_o
 
+    def to(self, device):
+        for energyhead in self.heads:
+            energyhead.to(device)
+
 
 class EnHead2(nn.Module):
 
@@ -103,7 +107,6 @@ class EnHead2(nn.Module):
             nn.Linear(2, hid_dim),
             nn.LayerNorm(hid_dim),
             *[nn.Linear(hid_dim, hid_dim) for _ in range(depth)],
-            nn.LayerNorm(hid_dim),
             nn.Linear(hid_dim, 1)
         )
 
