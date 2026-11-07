@@ -136,14 +136,22 @@ def train_one_epoch_TC(
         e_fake, h_fake = model(x_neg)
         e_real, h_real = model(x_real)
 
+        samples = torch.cat(
+            (
+                h_real.detach().requires_grad_(False),
+                h_fake.detach().requires_grad_(False),
+            )
+        )
+
         loss, cd, reg = cd_loss(
             e_fake=e_fake,
             e_real=e_real,
             energy_regularization=energy_reg,
             return_components=True,
         )
+
         corr = tc_regularizations * total_correlation_TC(
-            head_optputs=h_real, tc_estimator=tc_estimator
+            head_optputs=samples, tc_estimator=tc_estimator
         )
         loss += corr
 
@@ -168,20 +176,13 @@ def train_one_epoch_TC(
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
-        # Update the TC estimator
-        samples = torch.cat(
-            (
-                h_real.detach().requires_grad_(False),
-                h_fake.detach().requires_grad_(False),
-            )
-        )
-        # tc_estimator.update_buffer(samples)
+        tc_estimator.update_buffer(samples)
 
         # LR scheduler step
         if scheduler is not None:
             scheduler.step()
 
-    # tc_estimator.train_steps(tc_n_steps, tc_abs_tol)
+    tc_estimator.train_steps(tc_n_steps, tc_abs_tol)
 
     n = len(train_loader)
 
