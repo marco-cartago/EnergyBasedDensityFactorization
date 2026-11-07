@@ -50,11 +50,11 @@ class EnergyHead(nn.Module):
         )
         self.stage2 = nn.Sequential(
             *[SpectralResBlock(64) for _ in range(blocks_per_stage)],
-            SpectralDownsample(64, 128)
+            SpectralDownsample(64, 64)
         )
 
         self.gap = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.utils.spectral_norm(nn.Linear(128, 1))
+        self.fc = nn.utils.spectral_norm(nn.Linear(64, 1))
 
     def forward(self, x: torch.Tensor):
         x = self.stem(x)
@@ -81,10 +81,10 @@ class EBM(nn.Module):
     def forward(self, x: torch.Tensor, head_idx=None):
 
         if head_idx is not None:
-            h_o = self.heads[head_idx](x).squeeze(-1)
+            h_o = self.heads[head_idx](x)
 
         else:
-            h_o = torch.stack([head(x).squeeze(-1) for head in self.heads], dim=1)
+            h_o = torch.cat([head(x) for head in self.heads], dim=1)
 
         if h_o.dim() == 1:
             energy = h_o
@@ -93,26 +93,24 @@ class EBM(nn.Module):
 
         return energy, h_o
 
-    def to(self, device):
-        for energyhead in self.heads:
-            energyhead.to(device)
-
 
 class EnHead2(nn.Module):
 
-    def __init__(self, hid_dim=4, n_hid=1):
+    def __init__(self, hid_dim=4, depth=1):
         super().__init__()
 
         self.net = nn.Sequential(
             nn.Linear(2, hid_dim),
             nn.LayerNorm(hid_dim),
-            *[nn.Linear(n_hid, n_hid) for _ in range(n_hid)],
-            nn.LayerNorm(n_hid),
-            nn.Linear(n_hid, 1)
+            *[nn.Linear(hid_dim, hid_dim) for _ in range(depth)],
+            nn.LayerNorm(hid_dim),
+            nn.Linear(hid_dim, 1)
         )
 
     def forward(self, x):
-        return self.net(x)
+        x = self.net(x)
+        x = torch.flatten(x, 1)
+        return x
 
 
 class EBM2(nn.Module):
@@ -125,10 +123,10 @@ class EBM2(nn.Module):
     def forward(self, x: torch.Tensor, head_idx=None):
 
         if head_idx is not None:
-            h_o = self.heads[head_idx](x).squeeze(-1)
+            h_o = self.heads[head_idx](x)
 
         else:
-            h_o = torch.stack([head(x).squeeze(-1) for head in self.heads], dim=1)
+            h_o = torch.cat([head(x) for head in self.heads], dim=1)
 
         if h_o.dim() == 1:
             energy = h_o

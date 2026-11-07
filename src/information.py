@@ -22,7 +22,7 @@ class EntropyNetwork(nn.Module):
             nn.Linear(hidden_dim, hidden_dim // 2),
             nn.LayerNorm(hidden_dim // 2),
             self.activation(),
-            nn.Linear(hidden_dim // 2, 1),
+            nn.Linear(hidden_dim // 2, out_dim),
         )
 
     def forward(self, x):
@@ -90,10 +90,12 @@ class TotalCorrelationEstimator:
         return torch.mean(t) - torch.log(torch.mean(et) + 1e-8)
 
     def total_correlation(self, x):
+
+        x = x.unsqueeze(1)
         x = x.to(self.device)
         sum_marginal_h = 0.0
         for i in range(self.d):
-            xi = x[:, i].unsqueeze(-1)
+            xi = x[:, :, i]
             h = self.marginal_entropy(xi, self.marginal_networks[i])
             sum_marginal_h = sum_marginal_h + h
 
