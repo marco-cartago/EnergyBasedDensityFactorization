@@ -4,23 +4,23 @@ import torch
 import torch.utils.data as D
 
 from src.twoddensity import mog_dataset
-from src.model import EBM2
-from src.trainer import train_full_model
+from src.model import EBM2_Dense
+from src.trainer import train_full_model_TC, train_full_model_no_TC
 
 # Parameters
 # -------------------------------------------------------------------------------------- #
 
 # The seed (duh)
-SEED = 0
+SEED = 1
 
 # Data
 SZ_GAUS = (1, 2)
-N_SAMPLES = 1500
+N_SAMPLES = 2_000
 N_CLASSES = 5
 
 # Training
 BATCH_SIZE = 64
-N_EPOCH = 10_000
+N_EPOCH = 900
 TRAIN_PER = 0.8
 SHUFFLE = False
 
@@ -28,7 +28,8 @@ SHUFFLE = False
 N_HEAD = 4
 HID_DIM_SIZE = 32
 NETWORK_DEPTH = 2
-TC_REG_STR = 1e-3
+TC_REG_STR = 1e-2
+ENERGY_REGULARIZ = 1e-2
 SAMPLE_STEP_SIZE = 0.1
 LR = 1e-4
 SAMPLE_STEPS = 5
@@ -62,7 +63,7 @@ test_dataloader = D.DataLoader(data_test, batch_size=BATCH_SIZE)
 print(" [✓]")
 
 print("CREATING AND COMPILING MODEL", end="")
-model_gauss = EBM2(n_head=N_HEAD, hid_dim=HID_DIM_SIZE, depth=NETWORK_DEPTH)
+model_gauss = EBM2_Dense(n_head=N_HEAD, hid_dim=HID_DIM_SIZE, depth=NETWORK_DEPTH)
 model_gauss.to(DEVICE)
 model_gauss.compile()
 print(" [✓]")
@@ -70,11 +71,28 @@ print(" [✓]")
 # Model is trained (and saved?) along the (long?) way
 # -------------------------------------------------------------------------------------- #
 
-train_full_model(
+# train_full_model_no_TC(
+#     model=model_gauss,
+#     sample_step_size=SAMPLE_STEP_SIZE,
+#     ebm_learning_rate=LR,
+#     energy_reg=ENERGY_REGULARIZ,
+#     sample_steps=SAMPLE_STEPS,
+#     data_shape=SZ_GAUS,
+#     n_heads=N_HEAD,
+#     model_folder="gauss",
+#     train_loader=train_dataloader,
+#     n_epochs=N_EPOCH,
+#     device=DEVICE,
+#     verbose=False,
+# )
+
+
+train_full_model_TC(
     model=model_gauss,
     tc_regulariz=TC_REG_STR,
     sample_step_size=SAMPLE_STEP_SIZE,
     ebm_learning_rate=LR,
+    energy_reg=ENERGY_REGULARIZ,
     sample_steps=SAMPLE_STEPS,
     data_shape=SZ_GAUS,
     n_heads=N_HEAD,

@@ -108,7 +108,10 @@ def _eval_on_grid(
     X, Y = np.meshgrid(lin, lin, indexing="xy")  # X varies along columns
     grid = torch.from_numpy(np.stack([X, Y], -1).reshape(-1, 1, 2)).float().to(device)
 
-    fns = list(model.heads)
+    def head_fn(i):
+        return lambda x: model(x, head_idx=i)[0]
+
+    fns = [head_fn(i) for i in range(model.n_heads)]
     if include_full:
         fns.append(full_fn if full_fn is not None else lambda x: model(x)[0])
 
@@ -116,13 +119,13 @@ def _eval_on_grid(
         outs = []
         for i in range(0, len(grid), chunk):
             batch = grid[i : i + chunk]
-            o = fn(batch).reshape(len(batch), -1)
-            if o.shape[1] != 1:
+            o = fn(batch).reshape(-1)
+            if o.numel() != len(batch):
                 raise ValueError(
-                    f"expected one scalar per point, got output of {o.shape[1]} values; "
-                    "pass `full_fn` to reduce it to a scalar"
+                    f"expected one scalar per point, got {o.numel()} values for "
+                    f"{len(batch)} points; pass `full_fn` to reduce it to a scalar"
                 )
-            outs.append(o[:, 0])
+            outs.append(o)
         return torch.cat(outs).cpu().numpy().reshape(res, res)
 
     was_training = model.training
@@ -139,11 +142,12 @@ def _eval_on_grid(
         Z = np.exp(-(Z - Z.min(axis=(1, 2), keepdims=True)))
     elif mode != "raw":
         raise ValueError(f"unknown mode: {mode!r}")
+
     return X, Y, Z
 
 
 def _n_panels(model, include_full):
-    return len(model.heads) + int(include_full)
+    return model.n_heads + int(include_full)
 
 
 # Plotting
@@ -160,14 +164,15 @@ def plot_model_density(
     full_fn=None,
 ):
     """
-    Given a model with a `.heads` attribute (each head maps (B, 1, 2) -> one
-    scalar per point), plots one panel per head, plus one panel for the full
-    model `model(x)` if include_full (last panel).
+    Given a model exposing `n_heads` and `model(x, head_idx=i)` (each head
+    maps (B, 1, 2) -> one scalar per point), plots one panel per head, plus
+    one panel for the full model `model(x)` if include_full (last panel).
 
     mode: "log_density" -> exp(out), "energy" -> exp(-out), "raw" -> out as is.
     Each panel is shifted by its own max/min for display, so colors are
     comparable in shape but not in absolute value across panels.
     """
+
     X, Y, Z = _eval_on_grid(
         model, res, mode, device, include_full=include_full, full_fn=full_fn
     )
@@ -176,7 +181,7 @@ def plot_model_density(
         fig, axes = plt.subplots(1, n, figsize=(4 * n, 4), squeeze=False)
         axes = axes.ravel()
 
-    titles = [f"head {k}" for k in range(len(model.heads))]
+    titles = [f"head {k}" for k in range(model.n_heads)]
     if include_full:
         titles.append("full model")
 
@@ -234,8 +239,10 @@ def plot_gm_points(
     given, the 2-sigma ellipses of the true components are overlaid.
     Extra kwargs go to plot_model_density.
     """
+
     x = x.detach().cpu().numpy()
     y = y.detach().cpu().numpy()
+
     n_panels = _n_panels(model, include_full) if model is not None else 1
     if axes is None:
         fig, axes = plt.subplots(1, n_panels, figsize=(4 * n_panels, 4), squeeze=False)

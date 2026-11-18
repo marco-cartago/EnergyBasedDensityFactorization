@@ -47,6 +47,10 @@ class MINE_TC_Estimator:
         DV lower bound on TC(x). Differentiable w.r.t. both self.net's
         parameters and x, so it's safe to use as an upstream regularizer.
         """
+        x = x.reshape(x.shape[0], -1)
+        if x.shape[1] != self.d:
+            raise ValueError(f"expected {self.d} head output(s), got {x.shape[1]}")
+
         x_marginal = _permute_independently(x)
         t_joint = self.net(x)
         t_marginal = torch.clamp(self.net(x_marginal), max=self.max_t)
