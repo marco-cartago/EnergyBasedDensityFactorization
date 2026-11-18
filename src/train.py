@@ -138,8 +138,8 @@ def train_one_epoch_TC(
 
         samples = torch.cat(
             (
-                h_real.detach().requires_grad_(False),
-                h_fake.detach().requires_grad_(False),
+                h_real.detach(),
+                h_fake.detach(),
             )
         )
 
@@ -151,7 +151,7 @@ def train_one_epoch_TC(
         )
 
         corr = tc_regularizations * total_correlation_TC(
-            head_optputs=samples, tc_estimator=tc_estimator
+            head_outputs=samples, tc_estimator=tc_estimator
         )
         loss += corr
 
@@ -317,4 +317,110 @@ def train_one_epoch_MINE(
         print(f"  E_real: {running_e_real / n:.4f}")
         print(f"  E_fake: {running_e_fake / n:.4f}")
         print(f"  Gap:    {(running_e_real - running_e_fake) / n:.4f}")
+    return running_loss / n, traininfo
+
+
+def train_one_epoch_no_corr(
+    model: nn.Module,
+    sampler: ReplaySampler,
+    train_loader: DataLoader,
+    optimizer,
+    sample_steps: int,
+    sample_step_size: float,
+    sample_noise_std: float,
+    energy_reg: float,
+    scheduler=None,
+    clip_gradient: bool = False,
+    train_noise: float | None = None,
+    verbose: bool = False,
+    device: torch.device = torch.device("cpu"),
+):
+
+    running_loss = 0.0
+    running_cd = 0.0
+    running_reg = 0.0
+    running_corr = 0.0
+    running_e_real = 0.0
+    running_e_fake = 0.0
+
+    l_running_loss = []
+    l_running_cd = []
+    l_running_reg = []
+    l_running_corr = []
+    l_running_e_real = []
+    l_running_e_fake = []
+
+    for x_real, _ in train_loader:
+        x_real = x_real.to(device)
+
+        if train_noise is not None:
+            small_noise = torch.randn_like(x_real) * train_noise
+            x_real.add_(small_noise).clamp_(min=-1.0, max=1.0)
+
+        x_neg = sampler.sample(
+            batch_size=x_real.size(0),
+            steps=sample_steps,
+            step_size=sample_step_size,
+            noise_std=sample_noise_std,
+        )
+
+        e_fake, _ = model(x_neg)
+        e_real, _ = model(x_real)
+
+        loss, cd, reg = cd_loss(
+            e_fake=e_fake,
+            e_real=e_real,
+            energy_regularization=energy_reg,
+            return_components=True,
+        )
+
+        running_loss += loss.item()
+        running_cd += cd.item()
+        running_reg += reg.item()
+        running_corr += 0
+        running_e_real += e_real.mean().item()
+        running_e_fake += e_fake.mean().item()
+
+        l_running_loss.append(loss.item())
+        l_running_cd.append(cd.item())
+        l_running_reg.append(reg.item())
+        l_running_e_real.append(e_real.mean().item())
+        l_running_e_fake.append(e_fake.mean().item())
+
+        # Update the model
+        optimizer.zero_grad()
+        loss.backward()
+        if clip_gradient:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        optimizer.step()
+
+        # LR scheduler step
+        if scheduler is not None:
+            scheduler.step()
+
+    n = len(train_loader)
+
+    traininfo = {
+        "e_loss": running_loss / n,
+        "e_cd": running_cd / n,
+        "e_reg": running_reg / n,
+        "e_corr": running_corr / n,
+        "e_e_real": running_e_real / n,
+        "e_e_fake": running_e_fake / n,
+        "l_loss": l_running_loss,
+        "l_cd": l_running_cd,
+        "l_reg": l_running_reg,
+        "l_corr": l_running_corr,
+        "l_e_real": l_running_e_real,
+        "l_e_fake": l_running_e_fake,
+    }
+
+    if verbose:
+        print(f"  CD:     {running_cd / n:.4f}")
+        print(f"  Reg:    {running_reg / n:.4f}")
+        print(f"  Corr:   {running_corr / n:.4f}")
+        print(f"  E_real: {running_e_real / n:.4f}")
+        print(f"  E_fake: {running_e_fake / n:.4f}")
+        print(f"  Gap:    {(running_e_real - running_e_fake) / n:.4f}")
+
     return running_loss / n, traininfo

@@ -71,7 +71,12 @@ class TotalCorrelationEstimator:
         """
         Store new entropy samples. It randomly replace the old samples.
         """
-        samples = samples.detach().cpu()
+        samples = samples.detach().cpu().reshape(samples.shape[0], -1)
+        if samples.shape[1] != self.d:
+            raise ValueError(
+                f"expected {self.d} head output(s), got {samples.shape[1]}"
+            )
+
         n_sam = samples.size(0)
 
         idxs = torch.randperm(self.buffer_size)[:n_sam]
@@ -91,11 +96,13 @@ class TotalCorrelationEstimator:
 
     def total_correlation(self, x):
 
-        x = x.unsqueeze(1)
-        x = x.to(self.device)
+        x = x.reshape(x.shape[0], -1).to(self.device)
+        if x.shape[1] != self.d:
+            raise ValueError(f"expected {self.d} head output(s), got {x.shape[1]}")
+
         sum_marginal_h = 0.0
         for i in range(self.d):
-            xi = x[:, :, i]
+            xi = x[:, i : i + 1]
             h = self.marginal_entropy(xi, self.marginal_networks[i])
             sum_marginal_h = sum_marginal_h + h
 

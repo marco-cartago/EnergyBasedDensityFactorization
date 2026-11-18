@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from src.gradient_inspect import synthetize_image, synthetize_image_from_head
+from src.gradient_inspect import synthetize_image
 from src.sampler import ReplaySampler
 
 
@@ -87,9 +87,9 @@ def visualize_heads(
     """
 
     model.eval()
-    n_heads = len(model.heads)
+    n_heads = model.n_heads
 
-    fig, axes = plt.subplots(k, n_heads + 1)
+    fig, axes = plt.subplots(k, n_heads + 1, squeeze=False)
 
     # Add model samples
     axes[0, 0].set_title("Model")
@@ -102,11 +102,16 @@ def visualize_heads(
         axes[s, 0].axis("off")
 
     # Sample from each head
-    for i, head in enumerate(model.heads):
+    for i in range(n_heads):
         axes[0, i + 1].set_title(f"Head {i}")
         for s in range(k):
-            torch_img, _ = synthetize_image_from_head(
-                head, n_images=1, steps=steps, step_size=step_size, noise_std=noise_std
+            torch_img, _ = synthetize_image(
+                model,
+                n_images=1,
+                steps=steps,
+                step_size=step_size,
+                noise_std=noise_std,
+                head_idx=i,
             )
             image = torch_img.squeeze(0).squeeze(0).cpu().numpy()
             axes[s, i + 1].imshow(image, cmap=cmap)
@@ -126,7 +131,7 @@ def visualize_head_abs_gradients(
     model.eval()
     img = x[idx].unsqueeze(0).to(device)  # (1, 1, 28, 28)
 
-    n_heads = len(model.heads)
+    n_heads = model.n_heads
     fig, axes = plt.subplots(1, n_heads + 1, figsize=(3 * (n_heads + 1), 3))
 
     # Immagine originale
@@ -134,10 +139,10 @@ def visualize_head_abs_gradients(
     axes[0].set_title("Input")
     axes[0].axis("off")
 
-    for i, head in enumerate(model.heads):
+    for i in range(n_heads):
         x_ = img.detach().requires_grad_(True)
         with torch.enable_grad():
-            e = head(x_).sum()
+            e = model(x_, head_idx=i)[0].sum()
             g = torch.autograd.grad(e, x_, only_inputs=True)[0]
 
         g_np = g.squeeze().cpu().detach().numpy()
@@ -162,7 +167,7 @@ def visualize_head_gradients(
     model.eval()
     img = x[idx].unsqueeze(0).to(device)  # (1, 1, 28, 28)
 
-    n_heads = len(model.heads)
+    n_heads = model.n_heads
     fig, axes = plt.subplots(1, n_heads + 1, figsize=(3 * (n_heads + 1), 3))
 
     # Immagine originale
@@ -170,10 +175,10 @@ def visualize_head_gradients(
     axes[0].set_title("Input")
     axes[0].axis("off")
 
-    for i, head in enumerate(model.heads):
+    for i in range(n_heads):
         x_ = img.detach().requires_grad_(True)
         with torch.enable_grad():
-            e = head(x_).sum()
+            e = model(x_, head_idx=i)[0].sum()
             g = torch.autograd.grad(e, x_, only_inputs=True)[0]
 
         g_np = g.squeeze().cpu().detach().numpy()

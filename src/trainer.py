@@ -7,11 +7,11 @@ import tqdm
 
 from src.sampler import ReplaySampler
 from src.information import TotalCorrelationEstimator
-from src.train import train_one_epoch_TC
+from src.train import train_one_epoch_TC, train_one_epoch_no_corr
 import torch.optim as O
 
 
-def train_full_model(
+def train_full_model_TC(
     model: nn.Module,
     data_shape: tuple,
     n_heads: int,
@@ -40,17 +40,19 @@ def train_full_model(
 
     optimizer = O.Adam(model.parameters(), lr=ebm_learning_rate, betas=(0.000, 0.999))
 
-    scheduler = None  # O.lr_scheduler.ChainedScheduler(
-    #     [
-    #         O.lr_scheduler.LinearLR(
-    #             optimizer,
-    #             start_factor=ebm_learning_rate * 1e-2,
-    #             end_factor=ebm_learning_rate,
-    #             total_iters=10,
-    #         ),
-    #         O.lr_scheduler.Fixed(optimizer, T_max=n_epochs, eta_min=0),
-    #     ]
-    # )
+    scheduler = O.lr_scheduler.ChainedScheduler(
+        [
+            O.lr_scheduler.LinearLR(
+                optimizer,
+                start_factor=ebm_learning_rate * 1e-3,
+                end_factor=ebm_learning_rate,
+                total_iters=5,
+            ),
+            O.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=n_epochs, eta_min=ebm_learning_rate * 1e-1
+            ),
+        ]
+    )
 
     sampler = ReplaySampler(
         model,
@@ -101,7 +103,89 @@ def train_full_model(
             model_file = (
                 f"./models/{model_folder}/"
                 + f"{model.__class__.__name__}_{epoch}_epochs_{data_shape}"
-                + f"_shape_{len(model.heads)}_heads_{time_ns()}"
+                + f"_shape_{model.n_heads}_heads_{time_ns()}"
+            )
+            traininf_f = model_file + ".tinfo"
+            modelf = model_file + ".pth"
+
+            with open(traininf_f, "b+w") as f:
+                pickle.dump(traininfos, f)
+
+            with open(modelf, "b+w") as f:
+                torch.save(model.state_dict(), f)
+
+
+def train_full_model_no_TC(
+    model: nn.Module,
+    data_shape: tuple,
+    n_heads: int,
+    model_folder: str,
+    train_loader,
+    n_epochs=5,
+    ebm_learning_rate=1e-3,
+    sample_steps=20,
+    sample_step_size=0.1,
+    sample_buf_sz=128,
+    noise_frac=0.05,
+    noise_std=0.005,
+    energy_reg=1e-1,
+    device: torch.device = torch.device("cpu"),
+    verbose=False,
+):
+
+    model.to(device)
+
+    optimizer = O.Adam(model.parameters(), lr=ebm_learning_rate, betas=(0.000, 0.999))
+
+    scheduler = O.lr_scheduler.ChainedScheduler(
+        [
+            O.lr_scheduler.LinearLR(
+                optimizer,
+                start_factor=ebm_learning_rate * 1e-3,
+                end_factor=ebm_learning_rate,
+                total_iters=5,
+            ),
+            O.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=n_epochs, eta_min=ebm_learning_rate * 1e-1
+            ),
+        ]
+    )
+
+    sampler = ReplaySampler(
+        model,
+        img_shape=data_shape,
+        buffer_size=sample_buf_sz,
+        noise_fraction=noise_frac,
+        device=device,
+    )
+
+    traininfos = []
+
+    for epoch in tqdm.tqdm(range(n_epochs + 1)):
+        epoch_loss, traininfo = train_one_epoch_no_corr(
+            model,
+            sampler,
+            train_loader,
+            optimizer,
+            sample_steps=sample_steps,
+            sample_step_size=sample_step_size,
+            sample_noise_std=noise_std,
+            energy_reg=energy_reg,
+            device=device,
+        )
+        if scheduler is not None:
+            scheduler.step()
+
+        if verbose:
+            print(f"Epoch {epoch+1}, Loss: {epoch_loss:.4f}")
+
+        traininfos.append(traininfo)
+
+        if epoch == n_epochs:
+            model_file = (
+                f"./models/{model_folder}/"
+                + f"{model.__class__.__name__}_{epoch}_epochs_{data_shape}"
+                + f"_shape_{model.n_heads}_heads_{time_ns()}"
             )
             traininf_f = model_file + ".tinfo"
             modelf = model_file + ".pth"
