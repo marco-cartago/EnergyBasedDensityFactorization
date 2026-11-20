@@ -136,12 +136,7 @@ def train_one_epoch_TC(
         e_fake, h_fake = model(x_neg)
         e_real, h_real = model(x_real)
 
-        samples = torch.cat(
-            (
-                h_real.detach(),
-                h_fake.detach(),
-            )
-        )
+        samples = torch.cat((h_real, h_fake))
 
         loss, cd, reg = cd_loss(
             e_fake=e_fake,
