@@ -4,7 +4,7 @@ import torch
 import torch.utils.data as D
 
 from src.twoddensity import mog_dataset
-from src.model import EBM2_Dense
+from src.model import EBM2_Dense, EBM2
 from src.trainer import train_full_model_TC, train_full_model_no_TC
 
 # Parameters
@@ -15,24 +15,24 @@ SEED = 1
 
 # Data
 SZ_GAUS = (1, 2)
-N_SAMPLES = 2_000
+N_SAMPLES = 500
 N_CLASSES = 5
 
 # Training
-BATCH_SIZE = 64
-N_EPOCH = 900
+BATCH_SIZE = 32
+N_EPOCH = 1_000
 TRAIN_PER = 0.8
 SHUFFLE = False
 
 # Model
 N_HEAD = 4
-HID_DIM_SIZE = 32
+HID_DIM_SIZE = 8
 NETWORK_DEPTH = 2
 TC_REG_STR = 1e-2
-ENERGY_REGULARIZ = 1e-2
-SAMPLE_STEP_SIZE = 0.1
-LR = 1e-4
-SAMPLE_STEPS = 5
+ENERGY_REGULARIZ = 0.5
+SAMPLE_STEP_SIZE = 1e-2
+LR = 1e-3
+SAMPLE_STEPS = 20
 
 
 # Network stuff
@@ -63,7 +63,7 @@ test_dataloader = D.DataLoader(data_test, batch_size=BATCH_SIZE)
 print(" [✓]")
 
 print("CREATING AND COMPILING MODEL", end="")
-model_gauss = EBM2_Dense(n_head=N_HEAD, hid_dim=HID_DIM_SIZE, depth=NETWORK_DEPTH)
+model_gauss = EBM2(n_head=N_HEAD, hid_dim=HID_DIM_SIZE, depth=NETWORK_DEPTH)
 model_gauss.to(DEVICE)
 model_gauss.compile()
 print(" [✓]")
