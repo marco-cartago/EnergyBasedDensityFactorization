@@ -109,6 +109,14 @@ class FactorizedEBM(nn.Module):
 
 
 class EBM(FactorizedEBM):
+    """
+    Energy-based model with multiple heads, each head is a CNN that outputs an energy.
+
+    Args:
+        image_shape: shape of the input images (C, H, W)
+        n_heads: number of heads in the model
+        batch_size: size of the batches
+    """
 
     def __init__(
         self, image_shape: tuple, n_heads: int = 4, batch_size: int = 32
