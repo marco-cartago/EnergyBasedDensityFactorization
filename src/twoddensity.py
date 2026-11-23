@@ -79,6 +79,71 @@ def mog_dataset(
     )
 
 
+def mog_circle_dataset(
+    n_samples=1000,
+    n_classes=3,
+    comps_per_class=1,
+    std_range=(0.03, 0.08),
+    covs=None,
+    seed=None,
+):
+    """
+    Randomly generates a classification problem from a mixture of gaussians
+    with full (non-isotropic) covariances.
+
+    Each class owns `comps_per_class` gaussian components. Covariances are
+    Sigma = R(theta) diag(s1^2, s2^2) R(theta)^T with theta ~ U(0, pi) and
+    s1, s2 ~ U(std_range), unless `covs` of shape (n_comps, 2, 2) is given.
+    Centers are drawn uniformly in [0,1]^2 with a margin of 2 * the largest
+    axis std of the component. Samples are truncated to [0,1]^2 by rejection.
+
+    Returns
+    -------
+    x       : (N, 2) float tensor in [0,1]^2
+    y       : (N,)   long tensor, class labels in {0, ..., n_classes-1}
+    centers : (n_comps, 2)    float tensor
+    covs    : (n_comps, 2, 2) float tensor (covariances before truncation)
+    """
+    rng = np.random.default_rng(seed)
+    n_comps = n_classes * comps_per_class
+
+    if covs is None:
+        covs = _random_covs(rng, n_comps, std_range)
+    else:
+        covs = np.asarray(covs, dtype=float)
+        assert covs.shape == (n_comps, 2, 2)
+
+    max_std = np.sqrt(np.linalg.eigvalsh(covs)[:, -1])  # (n_comps,)
+    m = np.minimum(2 * max_std, 0.5)[:, None]
+    theta = np.linspace(0, 2 * np.pi, n_comps, endpoint=False)
+
+    radius = 0.35
+    center_x, center_y = 0.5, 0.5
+
+    centers = np.stack([
+        center_x + radius * np.cos(theta),
+        center_y + radius * np.sin(theta)
+    ], axis=1)
+
+    # Assicura che i centri rispettino i margini m
+    centers = np.clip(centers, m, 1 - m)
+
+    comp = rng.integers(0, n_comps, size=n_samples)  # uniform weights
+    x = np.empty((n_samples, 2))
+    for k in range(n_comps):
+        idx = np.where(comp == k)[0]
+        if len(idx):
+            x[idx] = _sample_truncated(rng, centers[k], covs[k], len(idx))
+
+    y = comp // comps_per_class  # component -> class
+    return (
+        torch.from_numpy(x).float(),
+        torch.from_numpy(y).long(),
+        torch.from_numpy(centers).float(),
+        torch.from_numpy(covs).float(),
+    )
+
+
 # Model evaluation on a grid
 # ----------------------------------------------------------------------------
 @torch.no_grad()
