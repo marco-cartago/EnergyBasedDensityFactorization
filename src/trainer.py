@@ -114,6 +114,8 @@ def train_full_model_TC(
             with open(modelf, "b+w") as f:
                 torch.save(model.state_dict(), f)
 
+    return traininfos
+
 
 def train_full_model_no_TC(
     model: nn.Module,
@@ -195,3 +197,5 @@ def train_full_model_no_TC(
 
             with open(modelf, "b+w") as f:
                 torch.save(model.state_dict(), f)
+
+    return traininfos
