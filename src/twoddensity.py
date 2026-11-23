@@ -226,32 +226,50 @@ def plot_model_density(
     levels=30,
     include_full=True,
     full_fn=None,
-    save_path=None
+    save_path=None,
+    shared_scale=True,
 ):
-    """
-    Given a model exposing `n_heads` and `model(x, head_idx=i)` (each head
-    maps (B, 1, 2) -> one scalar per point), plots one panel per head, plus
-    one panel for the full model `model(x)` if include_full (last panel).
-
-    mode: "log_density" -> exp(out), "energy" -> exp(-out), "raw" -> out as is.
-    Each panel is shifted by its own max/min for display, so colors are
-    comparable in shape but not in absolute value across panels.
-    """
-
     X, Y, Z = _eval_on_grid(
-        model, res, mode, device, include_full=include_full, full_fn=full_fn
+        model, res, mode, device,
+        include_full=include_full,
+        full_fn=full_fn
     )
+
     n = len(Z)
+
     if axes is None:
-        fig, axes = plt.subplots(1, n, figsize=(4 * n, 4), squeeze=False)
+        fig, axes = plt.subplots(
+            1, n, figsize=(4 * n, 4), squeeze=False
+        )
         axes = axes.ravel()
 
     titles = [f"head {k}" for k in range(model.n_heads)]
+
     if include_full:
         titles.append("full model")
 
+    # Limiti cromatici condivisi
+    if shared_scale:
+        vmin = min(np.min(z) for z in Z)
+        vmax = max(np.max(z) for z in Z)
+    else:
+        vmin = vmax = None
+
     for ax, z, t in zip(axes, Z, titles):
-        ax.contourf(X, Y, z, levels=levels, cmap=cmap)
+
+        if not shared_scale:
+            vmin_panel = np.min(z)
+            vmax_panel = np.max(z)
+        else:
+            vmin_panel = vmin
+            vmax_panel = vmax
+
+        ax.contourf(
+            X, Y, z,
+            levels=np.linspace(vmin_panel, vmax_panel, levels),
+            cmap=cmap,
+        )
+
         ax.set_xlim(-1, 1)
         ax.set_ylim(-1, 1)
         ax.set_aspect("equal")
@@ -259,6 +277,7 @@ def plot_model_density(
 
     if save_path is not None:
         plt.savefig(save_path, bbox_inches="tight", dpi=300)
+
     return axes
 
 
