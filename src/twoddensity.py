@@ -7,14 +7,13 @@ from matplotlib.patches import Ellipse
 # Dataset
 # ----------------------------------------------------------------------------
 def _sample_truncated(rng, mean, cov, n):
-    """n samples from N(mean, cov), truncated to [0,1]^2 by rejection."""
+    """n samples from N(mean, cov), truncated to [-1,1]^2 by rejection."""
     out = np.empty((0, 2))
     while len(out) < n:
         pts = rng.multivariate_normal(mean, cov, size=2 * n + 16)
-        pts = pts[((pts >= 0) & (pts <= 1)).all(axis=1)]
+        pts = pts[((pts >= -1) & (pts <= 1)).all(axis=1)]
         out = np.concatenate([out, pts])
     return out[:n]
-
 
 def _random_covs(rng, n, std_range):
     """n random SPD 2x2 matrices: Sigma = R diag(s1^2, s2^2) R^T."""
@@ -59,9 +58,10 @@ def mog_dataset(
         covs = np.asarray(covs, dtype=float)
         assert covs.shape == (n_comps, 2, 2)
 
-    max_std = np.sqrt(np.linalg.eigvalsh(covs)[:, -1])  # (n_comps,)
-    m = np.minimum(2 * max_std, 0.5)[:, None]
-    centers = rng.uniform(m, 1 - m, size=(n_comps, 2))
+    max_std = np.sqrt(np.linalg.eigvalsh(covs)[:, -1])
+    m = np.minimum(2 * max_std, 1.0)[:, None]
+
+    centers = rng.uniform(-1 + m, 1 - m, size=(n_comps, 2))
 
     comp = rng.integers(0, n_comps, size=n_samples)  # uniform weights
     x = np.empty((n_samples, 2))
@@ -117,16 +117,15 @@ def mog_circle_dataset(
     m = np.minimum(2 * max_std, 0.5)[:, None]
     theta = np.linspace(0, 2 * np.pi, n_comps, endpoint=False)
 
-    radius = 0.35
-    center_x, center_y = 0.5, 0.5
+    radius = 0.7
+    center_x, center_y = 0.0, 0.0
 
     centers = np.stack([
         center_x + radius * np.cos(theta),
         center_y + radius * np.sin(theta)
     ], axis=1)
 
-    # Assicura che i centri rispettino i margini m
-    centers = np.clip(centers, m, 1 - m)
+    centers = np.clip(centers, -1 + m, 1 - m)
 
     comp = rng.integers(0, n_comps, size=n_samples)  # uniform weights
     x = np.empty((n_samples, 2))
@@ -169,7 +168,7 @@ def _eval_on_grid(
         except (StopIteration, AttributeError):
             device = torch.device("cpu")
 
-    lin = np.linspace(0, 1, res)
+    lin = np.linspace(-1, 1, res)
     X, Y = np.meshgrid(lin, lin, indexing="xy")  # X varies along columns
     grid = torch.from_numpy(np.stack([X, Y], -1).reshape(-1, 1, 2)).float().to(device)
 
@@ -227,6 +226,7 @@ def plot_model_density(
     levels=30,
     include_full=True,
     full_fn=None,
+    save_path=None
 ):
     """
     Given a model exposing `n_heads` and `model(x, head_idx=i)` (each head
@@ -252,10 +252,13 @@ def plot_model_density(
 
     for ax, z, t in zip(axes, Z, titles):
         ax.contourf(X, Y, z, levels=levels, cmap=cmap)
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
+        ax.set_xlim(-1, 1)
+        ax.set_ylim(-1, 1)
         ax.set_aspect("equal")
         ax.set_title(t)
+
+    if save_path is not None:
+        plt.savefig(save_path, bbox_inches="tight", dpi=300)
     return axes
 
 
@@ -295,7 +298,10 @@ def plot_gm_points(
     include_full=True,
     mode="raw",
     full_fn=None,
+    save_path=None,
+    title=None,
     **density_kwargs,
+    
 ):
     """
     Plots points generated from a MOG on the 2d plane, colored by class.
@@ -339,8 +345,12 @@ def plot_gm_points(
             )
         if covs is not None:
             draw_cov_ellipses(ax, centers, covs, comps_per_class)
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
+        ax.set_xlim(-1, 1)
+        ax.set_ylim(-1, 1)
         ax.set_aspect("equal")
     axes[0].legend(loc="upper right", fontsize=7)
+    if title is not None:
+        axes[0].set_title(title)
+    if save_path is not None:
+        plt.savefig(save_path, bbox_inches="tight", dpi=300)
     return axes
