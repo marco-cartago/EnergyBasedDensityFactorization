@@ -3,7 +3,7 @@ import os
 import torch
 import torch.utils.data as D
 
-from src.twoddensity import mog_dataset
+from src.twoddensity import mog_circle_dataset, mog_dataset
 from src.model import EBM2_Dense, EBM2
 from src.trainer import train_full_model_TC, train_full_model_no_TC
 
@@ -11,12 +11,11 @@ from src.trainer import train_full_model_TC, train_full_model_no_TC
 # -------------------------------------------------------------------------------------- #
 
 # The seed (duh)
-SEED = 1
-
+SEED = 200
 # Data
 SZ_GAUS = (1, 2)
 N_SAMPLES = 500
-N_CLASSES = 5
+N_CLASSES = 6
 
 # Training
 BATCH_SIZE = 32
@@ -25,14 +24,14 @@ TRAIN_PER = 0.8
 SHUFFLE = False
 
 # Model
-N_HEAD = 4
-HID_DIM_SIZE = 8
+N_HEAD = 2
+HID_DIM_SIZE = 32
 NETWORK_DEPTH = 2
-TC_REG_STR = 1e-2
+TC_REG_STR = 1e-1
 ENERGY_REGULARIZ = 0.5
-SAMPLE_STEP_SIZE = 1e-2
+SAMPLE_STEP_SIZE = 1e-3
 LR = 1e-3
-SAMPLE_STEPS = 20
+SAMPLE_STEPS = 100
 
 
 # Network stuff
@@ -47,7 +46,7 @@ print(
 os.makedirs("./models/gauss", exist_ok=True)
 
 print(f"GENERATED {N_SAMPLES} FROM {N_CLASSES} GAUSSIANS.", end="")
-X, y, _, _ = mog_dataset(
+X, y, _, _ = mog_circle_dataset(
     n_samples=N_SAMPLES, n_classes=N_CLASSES, std_range=(0.03, 0.09), seed=SEED
 )
 print(" [✓]")
@@ -65,7 +64,7 @@ print(" [✓]")
 print("CREATING AND COMPILING MODEL", end="")
 model_gauss = EBM2(n_head=N_HEAD, hid_dim=HID_DIM_SIZE, depth=NETWORK_DEPTH)
 model_gauss.to(DEVICE)
-model_gauss.compile()
+#model_gauss.compile()
 print(" [✓]")
 
 # Model is trained (and saved?) along the (long?) way
