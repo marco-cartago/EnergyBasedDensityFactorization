@@ -98,7 +98,6 @@ def train_one_epoch_TC(
     tc_estimator: TotalCorrelationEstimator,
     tc_n_steps: int | None,
     tc_abs_tol: float | None,
-    scheduler=None,
     clip_gradient: bool = False,
     train_noise: float | None = None,
     verbose: bool = False,
@@ -172,10 +171,6 @@ def train_one_epoch_TC(
         optimizer.step()
 
         tc_estimator.update_buffer(samples)
-
-        # LR scheduler step
-        if scheduler is not None:
-            scheduler.step()
 
     tc_estimator.train_steps(tc_n_steps, tc_abs_tol)
 

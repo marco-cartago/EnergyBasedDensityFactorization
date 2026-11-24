@@ -38,20 +38,27 @@ def train_full_model_TC(
 
     model.to(device)
 
-    optimizer = O.Adam(model.parameters(), lr=ebm_learning_rate, betas=(0.000, 0.999))
+    optimizer = O.Adam(model.parameters(), lr=ebm_learning_rate, betas=(0.9, 0.999))
 
-    scheduler = O.lr_scheduler.ChainedScheduler(
-        [
-            O.lr_scheduler.LinearLR(
-                optimizer,
-                start_factor=ebm_learning_rate * 1e-3,
-                end_factor=ebm_learning_rate,
-                total_iters=5,
-            ),
-            O.lr_scheduler.CosineAnnealingLR(
-                optimizer, T_max=n_epochs, eta_min=ebm_learning_rate * 1e-1
-            ),
-        ]
+    # scheduler = O.lr_scheduler.ChainedScheduler(
+    #     [
+    #         O.lr_scheduler.LinearLR(
+    #             optimizer,
+    #             start_factor=ebm_learning_rate * 1e-3,
+    #             end_factor=ebm_learning_rate,
+    #             total_iters=5,
+    #         ),
+    #         O.lr_scheduler.CosineAnnealingLR(
+    #             optimizer, T_max=n_epochs, eta_min=ebm_learning_rate * 1e-1
+    #         ),
+    #     ]
+    # )
+
+    scheduler = O.lr_scheduler.LinearLR(
+        optimizer,
+        start_factor=1e-3,
+        end_factor=1.0,
+        total_iters=5,
     )
 
     sampler = ReplaySampler(

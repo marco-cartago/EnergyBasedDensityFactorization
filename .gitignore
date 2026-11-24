@@ -12,6 +12,7 @@
 *-ubyte
 /images/FMNIST/*_GIF/
 donofrio*
-
+/ablations/
+/refactor/refactor/ablations/
 baseline_models.py
 train_other_models.py
