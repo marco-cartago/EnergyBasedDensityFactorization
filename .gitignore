@@ -3,6 +3,7 @@
 /.env/
 /.venv/
 /.env/
+/.ebm_venv/
 /models/
 /data/
 *.pyc
