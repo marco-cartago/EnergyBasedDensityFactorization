@@ -68,7 +68,7 @@ def parse_args():
     p.add_argument("--plot-batch", action="store_true",
                    help="also plot per-batch loss curves (as in ablation_gaussians)")
     p.add_argument("--device", default=None)
-    p.add_argument("--out", default="./refactor/models/faces")
+    p.add_argument("--out", default="./refactor/ablations/lfw")
     return p.parse_args()
 
 
