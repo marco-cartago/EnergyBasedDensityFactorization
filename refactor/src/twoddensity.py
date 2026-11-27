@@ -200,11 +200,11 @@ def _eval_on_grid(
         model.train(was_training)
 
     # Outputs are generally unnormalized: shift per panel before exponentiating
-    if mode == "log_density":
+    if mode == "energy-max":
         Z = np.exp(Z - Z.max(axis=(1, 2), keepdims=True))
-    elif mode == "energy":
+    elif mode == "energy-min":
         Z = np.exp(-(Z - Z.min(axis=(1, 2), keepdims=True)))
-    elif mode != "raw":
+    elif mode != "log-density":
         raise ValueError(f"unknown mode: {mode!r}")
 
     return X, Y, Z
@@ -320,7 +320,7 @@ def plot_gm_points(
     save_path=None,
     title=None,
     **density_kwargs,
-    
+
 ):
     """
     Plots points generated from a MOG on the 2d plane, colored by class.

@@ -11,15 +11,15 @@ import tqdm
 
 from src.information import TotalCorrelationEstimator
 from src.sampler import ReplaySampler
-from src.train import train_one_epoch_TC, train_one_epoch_no_corr
+from src.train import train_one_epoch_no_corr, train_one_epoch_TC
 
 
 def _make_optimizer_and_scheduler(model, lr, n_epochs, weight_decay=1e-5):
     # betas=(0, 0.999) in the old code removed first-moment averaging.
-    optimizer = O.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=weight_decay)
+    optimizer = O.Adam(
+        model.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=weight_decay
+    )
 
-    # LinearLR factors are MULTIPLIERS of base lr: use relative factors, not
-    # lr-scaled ones (the old code produced an effective lr ~1e-6).
     warmup = max(1, min(5, n_epochs))
     scheduler = O.lr_scheduler.ChainedScheduler(
         [
@@ -88,7 +88,9 @@ def train_full_model_TC(
     verbose=False,
 ):
     model.to(device)
-    optimizer, scheduler = _make_optimizer_and_scheduler(model, ebm_learning_rate, n_epochs)
+    optimizer, scheduler = _make_optimizer_and_scheduler(
+        model, ebm_learning_rate, n_epochs
+    )
     sampler = _make_sampler(model, data_shape, sample_buf_sz, noise_frac, device)
 
     tc_estimator = TotalCorrelationEstimator(
@@ -156,7 +158,9 @@ def train_full_model_no_TC(
     verbose=False,
 ):
     model.to(device)
-    optimizer, scheduler = _make_optimizer_and_scheduler(model, ebm_learning_rate, n_epochs)
+    optimizer, scheduler = _make_optimizer_and_scheduler(
+        model, ebm_learning_rate, n_epochs
+    )
     sampler = _make_sampler(model, data_shape, sample_buf_sz, noise_frac, device)
 
     traininfos = []
@@ -184,4 +188,5 @@ def train_full_model_no_TC(
         traininfos.append(traininfo)
 
     _save_run(model, traininfos, output_root, model_folder, n_epochs, data_shape)
+
     return traininfos, sampler
