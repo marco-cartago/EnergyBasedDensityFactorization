@@ -4,8 +4,16 @@ Examples (from the repository root):
     python refactor/train_faces.py --dataset lfw --epochs 30
     python refactor/train_faces.py --dataset olivetti --epochs 20 --no-tc
 
+    # Quick CPU smoke run (each batch runs --sample-steps Langevin steps):
+    python refactor/train_faces.py --dataset lfw --epochs 2 --no-tc \
+        --image-size 64 --sample-steps 20 --max-samples 256
+
 LFW is downloaded through scikit-learn on first use.  If no network is
 available, use ``--dataset olivetti`` or pre-populate ``--data-home``.
+
+Note: ``--image-size 128 --sample-steps 100`` is very expensive (hours per
+epoch on CPU, because every Langevin step backprops through all conv heads).
+The defaults below are deliberately lighter; raise them for final runs.
 """
 
 import argparse
@@ -31,8 +39,8 @@ from src.trainer import train_full_model_TC, train_full_model_no_TC  # noqa: E40
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--dataset", choices=["lfw", "olivetti"], default="lfw")
-    p.add_argument("--image-size", type=int, default=None,
-                   help="default: 128 for LFW, 64 for Olivetti")
+    p.add_argument("--image-size", type=int, default=64,
+                   help="default: 64 (128 is much slower)")
     p.add_argument("--data-home", default="./data")
     p.add_argument("--min-faces", type=int, default=20, help="LFW only")
     p.add_argument("--max-samples", type=int, default=None,
@@ -45,7 +53,8 @@ def parse_args():
     p.add_argument("--tc-updates", type=int, default=5,
                    help="critic steps per model batch")
     p.add_argument("--energy-reg", type=float, default=1e-2)
-    p.add_argument("--sample-steps", type=int, default=100)
+    p.add_argument("--sample-steps", type=int, default=20,
+                   help="Langevin steps per batch; 100 is much slower")
     p.add_argument("--sample-step-size", type=float, default=0.01)
     p.add_argument("--noise-std", type=float, default=0.05)
     p.add_argument("--normalize-grad", action=argparse.BooleanOptionalAction,
@@ -54,7 +63,7 @@ def parse_args():
                         "independent of conv-head magnitude (needed for images)")
     p.add_argument("--buffer-size", type=int, default=256)
     p.add_argument("--gen-samples", type=int, default=16)
-    p.add_argument("--gen-steps", type=int, default=200)
+    p.add_argument("--gen-steps", type=int, default=100)
     p.add_argument("--no-tc", action="store_true")
     p.add_argument("--plot-batch", action="store_true",
                    help="also plot per-batch loss curves (as in ablation_gaussians)")
@@ -103,13 +112,22 @@ def main():
     )
     torch.manual_seed(0)
     print(f"CURRENTLY USING: {str(device).capitalize()}")
+    if device.type == "cpu" and (args.image_size or 64) >= 128 and args.sample_steps > 20:
+        print(
+            "WARNING: 128px images with >20 Langevin steps take hours per epoch "
+            "on CPU, so the progress bar may appear stuck. Use --image-size 64 "
+            "--sample-steps 20 for a quick run."
+        )
 
     with open(os.path.join(run_dir, "params.txt"), "w") as f:
         for k, v in vars(args).items():
             f.write(f"{k}: {v}\n")
 
     try:
-        train_loader, test_loader = load_data(args)
+        if args.dataset == "lfw":
+            train_loader, test_loader, _ = load_data(args)
+        else:
+            train_loader, test_loader = load_data(args)
     except Exception as exc:  # dataset download can fail offline
         raise SystemExit(
             f"Could not load {args.dataset}: {exc}\n"
@@ -123,6 +141,7 @@ def main():
         f"Dataset={args.dataset}, shape={img_shape}, "
         f"train={len(train_loader.dataset)}, test={len(test_loader.dataset)}"
     )
+
 
     model = EBM(image_shape=img_shape, n_heads=args.n_head).to(device)
 
@@ -159,8 +178,10 @@ def main():
     torch.save(model.state_dict(), os.path.join(run_dir, "model_final.pth"))
 
     print("EVALUATING MODEL")
+    # Sanity check: if this grid is black, the input normalization is wrong
+    # (the sampler inherits the same range).
     save_image_grid(
-        sample[: args.gen_samples], os.path.join(plot_dir, "real_faces.png"),
+        sample[:args.gen_samples], os.path.join(plot_dir, "real_faces.png"),
         n=args.gen_samples,
     )
 
