@@ -14,6 +14,7 @@ import sys
 from datetime import datetime
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +24,7 @@ if _THIS_DIR not in sys.path:
 from src.data_import import load_lfw, load_olivetti  # noqa: E402
 from src.model import EBM  # noqa: E402
 from src.plotting import plot_traininfo, save_image_grid  # noqa: E402
+from src.sampler import ReplaySampler  # noqa: E402
 from src.trainer import train_full_model_TC, train_full_model_no_TC  # noqa: E402
 
 
@@ -54,6 +56,8 @@ def parse_args():
     p.add_argument("--gen-samples", type=int, default=16)
     p.add_argument("--gen-steps", type=int, default=200)
     p.add_argument("--no-tc", action="store_true")
+    p.add_argument("--plot-batch", action="store_true",
+                   help="also plot per-batch loss curves (as in ablation_gaussians)")
     p.add_argument("--device", default=None)
     p.add_argument("--out", default="./refactor/models/faces")
     return p.parse_args()
@@ -149,20 +153,54 @@ def main():
         )
 
     plot_traininfo(
-        tinfo, smooth=5, save_path=os.path.join(plot_dir, "train_info.png"), show=False
+        tinfo, smooth=5, plot_batch=args.plot_batch,
+        save_path=os.path.join(plot_dir, "train_info.png"), show=False,
     )
     torch.save(model.state_dict(), os.path.join(run_dir, "model_final.pth"))
 
+    print("EVALUATING MODEL")
     save_image_grid(
         sample[: args.gen_samples], os.path.join(plot_dir, "real_faces.png"),
         n=args.gen_samples,
     )
-    generated = sampler.generate(
-        args.gen_samples, steps=args.gen_steps,
-        step_size=args.sample_step_size, noise_std=args.noise_std,
+
+    # A head-only view exposes a single factor's energy to the sampler:
+    # E_i(x) = model(x, head_idx=i)[0].  Mirrors the gaussian script.
+    class HeadView(nn.Module):
+        def __init__(self, model, i):
+            super().__init__()
+            self.model, self.i = model, i
+
+        def forward(self, x):
+            return self.model(x, head_idx=self.i)
+
+    gen_kwargs = dict(
+        steps=args.gen_steps,
+        step_size=args.sample_step_size,
+        noise_std=args.noise_std,
         normalize_grad=args.normalize_grad,
         batch_size=min(32, args.gen_samples),
     )
+
+    # Sample each head in isolation first, then the combined model.
+    for i in range(args.n_head):
+        head_sampler = ReplaySampler(
+            HeadView(model, i), img_shape=img_shape,
+            buffer_size=args.buffer_size, noise_fraction=0.05, device=device,
+        )
+        head_samples = head_sampler.generate(args.gen_samples, **gen_kwargs)
+        save_image_grid(
+            head_samples,
+            os.path.join(plot_dir, f"generated_faces_head_{i}.png"),
+            n=args.gen_samples,
+        )
+
+    generated = sampler.generate(args.gen_samples, **gen_kwargs)
+    save_image_grid(
+        generated, os.path.join(plot_dir, "generated_faces_combination.png"),
+        n=args.gen_samples,
+    )
+    # Original filename kept for compatibility with existing outputs.
     save_image_grid(
         generated, os.path.join(plot_dir, "generated_faces.png"),
         n=args.gen_samples,
