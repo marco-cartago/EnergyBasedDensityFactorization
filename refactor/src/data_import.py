@@ -219,7 +219,12 @@ def load_lfw(
     else:
         class_names = names
 
-    X = X.astype(np.float32) / 255.0
+    # scikit-learn already returns LFW pixels in [0, 1] (float32).  Dividing
+    # again by 255 maps almost every pixel to ~0, so after ``* 2 - 1`` the
+    # images are essentially constant -1 and look completely black.
+    X = lfw.images.astype(np.float32)
+    if X.max() > 1.0:  # be robust to caches/loaders that return [0, 255]
+        X = X / 255.0
     X = torch.tensor(X).unsqueeze(1)
     X = F.interpolate(X, size=(image_size, image_size), mode="bilinear")
 

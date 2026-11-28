@@ -119,6 +119,7 @@ def train_full_model_TC(
             tc_n_steps=tc_n_steps,
             tc_abs_tol=tc_abs_tol,
             device=device,
+            verbose=verbose,
         )
         # One scheduler step per epoch (never per batch).
         scheduler.step()
@@ -172,6 +173,7 @@ def train_full_model_no_TC(
             normalize_grad=normalize_grad,
             energy_reg=energy_reg,
             device=device,
+            verbose=verbose,
         )
         scheduler.step()
 

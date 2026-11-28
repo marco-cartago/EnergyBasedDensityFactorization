@@ -6,6 +6,7 @@
 /.ebm_venv/
 /models/
 /data/
+
 *.pyc
 *.pth
 *.gz
@@ -15,5 +16,6 @@
 donofrio*
 /ablations/
 /refactor/refactor/ablations/
+/refactor/refactor/models/
 baseline_models.py
 train_other_models.py

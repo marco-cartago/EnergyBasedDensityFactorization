@@ -15,10 +15,32 @@ python refactor/ablation_gaussians.py --epochs 20 --sample-steps 5 --gen-steps 5
 # Faces (LFW downloaded on first use by scikit-learn)
 python refactor/train_faces.py --dataset lfw --epochs 30
 python refactor/train_faces.py --dataset olivetti --epochs 20 --no-tc
+
+# Quick CPU smoke run; full 128px/100-step runs take hours per epoch
+python refactor/train_faces.py --dataset lfw --epochs 2 --no-tc \
+    --image-size 64 --sample-steps 20 --max-samples 256
 ```
+
+Face defaults are `--image-size 64 --sample-steps 20 --gen-steps 100` so the
+progress bar advances on CPU; use 128/100 for the full experiment.
 
 `--out` controls where checkpoints, logs and plots are written (defaults are
 `./refactor/ablations/gauss` and `./refactor/models/faces`).
+
+## Shared loss / evaluation workflow
+
+Both scripts use the same loss workflow: `plot_traininfo` writes
+`train_info.png` with the epoch-level loss components (CD, energy regularization,
+TC) and real-vs-fake energies, and `--plot-batch` additionally writes
+`train_info_batch.png` with the per-batch curves. The same breakdown is printed
+per epoch during training.
+
+Face evaluation mirrors `ablation_gaussians.py`: it samples **each head in
+isolation first** via a `HeadView` that exposes only `E_i(x) = model(x,
+head_idx=i)` (`generated_faces_head_*.png`), **then the combined model**
+(`generated_faces_combination.png`, also kept as `generated_faces.png` for
+compatibility). All sampling uses the same Langevin settings as training, with
+`--normalize-grad` enabled by default for conv heads.
 
 ## What changed relative to the original
 
@@ -30,8 +52,9 @@ python refactor/train_faces.py --dataset olivetti --epochs 20 --no-tc
 | `src/losses.py` | Weaker default energy L2 term (0.01 instead of 0.5, which drove energies to constant ±1). |
 | `src/model.py` | MLP heads are spectral-normalized so energies stay bounded without a large energy penalty; gaussian input shape is consistently `(2,)`. |
 | `src/sampler.py` | Langevin no longer toggles `requires_grad` on all parameters every batch (`autograd.grad` with `x` as sole input does not accumulate parameter gradients); `eval()` entered once per call; **gradient clipping removed and noise matched to the step size** (`step=0.002`, `noise=0.063`, T=1) so chains actually sample `exp(-E)`; warnings for mismatched noise. |
-| `src/data_import.py` | LFW/Olivetti images normalized to `[-1, 1]` to match the sampler's clamp range; `data_home`, `max_samples` and stratified-split guards added. |
+| `src/data_import.py` | LFW/Olivetti images normalized to `[-1, 1]` to match the sampler's clamp range; LFW is no longer divided by 255 twice (sklearn already returns `[0, 1]`, which made every image almost constant `-1`/black); `data_home`, `max_samples` and stratified-split guards added. |
 | `src/plotting.py` | Shared plotting; batch metrics no longer break on ragged per-epoch lists. |
+| `train_faces.py` | Per-head sampling evaluation followed by combined-model sampling; `--plot-batch` support; same loss-component logging as the gaussian script. |
 | scripts | CLI overrides for quick smoke runs; gaussian data shape `(2,)` end-to-end; artifacts kept under `refactor/`. |
 
 The overall workflow (PCD/Langevin sampling, CD + energy reg + TC penalty,
