@@ -20,10 +20,11 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-from src.model import EBM2  # noqa: E402
 from src.plotting import plot_traininfo  # noqa: E402
+
+from src.model import EBM2  # noqa: E402
 from src.sampler import ReplaySampler  # noqa: E402
-from src.trainer import train_full_model_TC, train_full_model_no_TC  # noqa: E402
+from src.trainer import train_full_model_no_TC, train_full_model_TC  # noqa: E402
 from src.twoddensity import (  # noqa: E402
     mog_circle_dataset,
     mog_dataset,
@@ -47,13 +48,22 @@ def parse_args():
     p.add_argument("--hid-dim", type=int, default=32)
     p.add_argument("--depth", type=int, default=2)
     p.add_argument("--tc-reg", type=float, default=1e-2)
-    p.add_argument("--tc-updates", type=int, default=5,
-                   help="critic steps per model batch")
+    p.add_argument(
+        "--tc-updates", type=int, default=5, help="critic steps per model batch"
+    )
     p.add_argument("--energy-reg", type=float, default=1e-2)
-    p.add_argument("--sample-step-size", type=float, default=0.002,
-                   help="Langevin drift step; noise is matched as sqrt(2*step)")
-    p.add_argument("--noise-std", type=float, default=0.063,
-                   help="Langevin noise; sqrt(2*step_size) gives T=1")
+    p.add_argument(
+        "--sample-step-size",
+        type=float,
+        default=0.002,
+        help="Langevin drift step; noise is matched as sqrt(2*step)",
+    )
+    p.add_argument(
+        "--noise-std",
+        type=float,
+        default=0.063,
+        help="Langevin noise; sqrt(2*step_size) gives T=1",
+    )
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--sample-steps", type=int, default=100)
     p.add_argument("--gen-steps", type=int, default=300)
@@ -134,8 +144,10 @@ def main():
         tinfo, sampler, *_ = train_full_model_no_TC(**common)
     else:
         tinfo, sampler, _ = train_full_model_TC(
-            **common, tc_regulariz=args.tc_reg, tc_buffer_size=256,
-            tc_updates_per_step=args.tc_updates
+            **common,
+            tc_regulariz=args.tc_reg,
+            tc_buffer_size=256,
+            tc_updates_per_step=args.tc_updates,
         )
 
     model_file = os.path.join(
@@ -144,32 +156,55 @@ def main():
     torch.save(model_gauss.state_dict(), model_file)
 
     plot_gm_points(
-        Xtrain, ytrain, centers=means, covs=covs,
-        title="Training Data", save_path=f"{plot_path}/train_data.png",
+        Xtrain,
+        ytrain,
+        centers=means,
+        covs=covs,
+        title="Training Data",
+        mode="log-density",
+        save_path=f"{plot_path}/train_data.png",
+
     )
     plot_traininfo(
-        tinfo, smooth=5, plot_batch=args.plot_batch,
-        save_path=f"{plot_path}/train_info.png", show=False,
+        tinfo,
+        smooth=5,
+        plot_batch=args.plot_batch,
+        save_path=f"{plot_path}/train_info.png",
+        show=False,
     )
 
     print("EVALUATING MODEL")
     samples = sampler.generate(
-        args.gen_samples, steps=args.gen_steps,
-        step_size=args.sample_step_size, noise_std=args.noise_std,
+        args.gen_samples,
+        steps=args.gen_steps,
+        step_size=args.sample_step_size,
+        noise_std=args.noise_std,
     ).reshape(-1, 2)
 
     plot_gm_points(
-        samples, torch.ones(len(samples), dtype=torch.long),
-        model=model_gauss, centers=means, covs=covs, mode="raw",
-        cmap="gray", save_path=f"{plot_path}/generated_samples.png",
+        samples,
+        torch.ones(len(samples), dtype=torch.long),
+        model=model_gauss,
+        centers=means,
+        covs=covs,
+        mode="log-density",
+        cmap="gray",
+        save_path=f"{plot_path}/generated_samples.png",
     )
     plot_gm_points(
-        Xtrain, ytrain, model=model_gauss, centers=means, covs=covs,
-        mode="raw", cmap="gray", title="Eval on Training Data",
+        Xtrain,
+        ytrain,
+        model=model_gauss,
+        centers=means,
+        covs=covs,
+        mode="log-density",
+        cmap="gray",
+        title="Eval on Training Data",
         save_path=f"{plot_path}/eval_on_train_data.png",
     )
     plot_model_density(
-        model_gauss, mode="log_density",
+        model_gauss,
+        mode="log-density",
         save_path=f"{plot_path}/model_density.png",
     )
 
@@ -184,16 +219,25 @@ def main():
     for i in range(args.n_head):
         head_view = HeadView(model_gauss, i)
         head_sampler = ReplaySampler(
-            head_view, img_shape=sz_gaus, buffer_size=600,
-            noise_fraction=0.05, device=device,
+            head_view,
+            img_shape=sz_gaus,
+            buffer_size=600,
+            noise_fraction=0.05,
+            device=device,
         )
         head_samples = head_sampler.generate(
-            args.gen_samples, steps=args.gen_steps,
-            step_size=args.sample_step_size, noise_std=args.noise_std,
+            args.gen_samples,
+            steps=args.gen_steps,
+            step_size=args.sample_step_size,
+            noise_std=args.noise_std,
         ).reshape(-1, 2)
         plot_gm_points(
-            head_samples, torch.ones(len(head_samples), dtype=torch.long),
-            centers=means, covs=covs, mode="raw", cmap="gray",
+            head_samples,
+            torch.ones(len(head_samples), dtype=torch.long),
+            centers=means,
+            covs=covs,
+            mode="log-density",
+            cmap="gray",
             title=f"Generated Samples from Head {i}",
             save_path=f"{plot_path}/generated_samples_head_{i}.png",
         )
