@@ -1,14 +1,12 @@
-from torch.utils.data import DataLoader, Subset, Dataset
-from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, Subset, random_split, TensorDataset
-
-# from disentanglement_datasets import DSprites
-from sklearn.datasets import fetch_olivetti_faces, fetch_lfw_people, load_digits
-from sklearn.model_selection import train_test_split
-
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
+
+# from disentanglement_datasets import DSprites
+from sklearn.datasets import fetch_lfw_people, fetch_olivetti_faces, load_digits
+from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader, Dataset, Subset, TensorDataset, random_split
+from torchvision import datasets, transforms
 
 
 def load_fashion_mnist(batch_size=64, shuffle=True, class_subset=None):
