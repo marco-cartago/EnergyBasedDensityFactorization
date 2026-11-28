@@ -1,8 +1,8 @@
 """Persistent (replay-buffer) Langevin sampler for energy-based models."""
 
-from contextlib import contextmanager
 import math
 import warnings
+from contextlib import contextmanager
 
 import torch
 import torch.nn as nn
@@ -67,7 +67,11 @@ class ReplaySampler:
 
     @staticmethod
     def _check_noise_scale(step_size, noise_std, grad_clip, normalize_grad):
-        if grad_clip is not None or normalize_grad or isinstance(step_size, torch.Tensor):
+        if (
+            grad_clip is not None
+            or normalize_grad
+            or isinstance(step_size, torch.Tensor)
+        ):
             return
         try:
             eta = float(step_size)
