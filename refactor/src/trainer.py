@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.optim as O
 import tqdm
 
-from src.information import TotalCorrelationEstimator
+from src.information import TCEstimator1
 from src.sampler import ReplaySampler
 from src.train import train_one_epoch_no_corr, train_one_epoch_TC
 
@@ -77,7 +77,7 @@ def train_full_model_TC(
     energy_reg=0.01,
     tc_regulariz=1e-2,
     tc_lr=1e-2,
-    tc_hidden_dim=16,
+    tc_hidden_dim=32,
     tc_buffer_size=128,
     tc_batch_size=64,
     tc_updates_per_step=5,
@@ -93,13 +93,10 @@ def train_full_model_TC(
     )
     sampler = _make_sampler(model, data_shape, sample_buf_sz, noise_frac, device)
 
-    tc_estimator = TotalCorrelationEstimator(
+    tc_estimator = TCEstimator1(
         d=n_heads,
-        data_shape=data_shape,
         hidden_dim=tc_hidden_dim,
         lr=tc_lr,
-        buffer_size=tc_buffer_size,
-        batch_size=tc_batch_size,
         device=device,
     )
     tc_estimator.to(device)

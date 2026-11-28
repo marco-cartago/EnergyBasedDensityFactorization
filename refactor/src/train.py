@@ -5,7 +5,7 @@ import torch.nn as nn
 import tqdm
 from torch.utils.data import DataLoader
 
-from src.information import TotalCorrelationEstimator
+from src.information import TC_Estimator
 from src.losses import cd_loss, head_correlation_penalty, total_correlation_TC
 from src.sampler import ReplaySampler
 
@@ -27,6 +27,7 @@ def _collect_traininfo(
         "e_e_fake": running_e_fake / n,
         "l_loss": l_loss,
         "l_cd": l_cd,
+
         "l_reg": l_reg,
         "l_corr": l_corr,
         "l_e_real": l_e_real,
@@ -117,7 +118,7 @@ def train_one_epoch_TC(
     normalize_grad: bool,
     energy_reg: float,
     tc_regularizations: float,
-    tc_estimator: TotalCorrelationEstimator,
+    tc_estimator: TC_Estimator,
     tc_updates_per_step: int = 5,
     tc_n_steps: int | None = None,
     tc_abs_tol: float | None = None,
@@ -162,13 +163,13 @@ def train_one_epoch_TC(
             energy_regularization=energy_reg, return_components=True,
         )
 
-        with tc_estimator.frozen():
-            corr = tc_regularizations * total_correlation_TC(samples, tc_estimator)
+        corr = tc_regularizations * total_correlation_TC(samples, tc_estimator)
         loss += corr
 
         loss_v, cd_v, reg_v, corr_v = (
             loss.item(), cd.item(), reg.item(), corr.item()
         )
+
         e_real_v, e_fake_v = e_real.mean().item(), e_fake.mean().item()
         running_loss += loss_v
         running_cd += cd_v
@@ -185,8 +186,10 @@ def train_one_epoch_TC(
 
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
+
         if clip_gradient:
             nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
         optimizer.step()
 
         # The critic must see the *current* model's heads, not the pre-update
@@ -196,6 +199,7 @@ def train_one_epoch_TC(
             _, h_real_now = model(x_real)
             _, h_fake_now = model(x_neg)
             critic_samples = torch.cat((h_real_now, h_fake_now), dim=0)
+
         for _ in range(max(1, tc_updates_per_step)):
             tc_estimator.train_step(critic_samples)
 

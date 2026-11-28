@@ -2,7 +2,7 @@
 
 import torch
 
-from src.information import TotalCorrelationEstimator
+from src.information import TC_Estimator
 
 
 def cd_loss(
@@ -42,6 +42,6 @@ def head_correlation_penalty(H: torch.Tensor):
 
 def total_correlation_TC(
     head_outputs: torch.Tensor,
-    tc_estimator: TotalCorrelationEstimator,
+    tc_estimator: TC_Estimator,
 ):
-    return tc_estimator.total_correlation(head_outputs)
+    return tc_estimator.dv_bound(head_outputs)

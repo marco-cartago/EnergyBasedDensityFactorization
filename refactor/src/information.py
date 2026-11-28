@@ -1,4 +1,5 @@
-"""Total-correlation estimator for the factorized EBM heads.
+"""
+Total-correlation estimator for the factorized EBM heads.
 
 Refactor notes
 --------------
@@ -12,12 +13,16 @@ is self-contained: it does not depend on ``src/MINE.py``.
 
 from contextlib import contextmanager
 
+from math import log
+
 import torch
 import torch.nn as nn
+from torch.nn.utils import spectral_norm
 from torch.utils.data import DataLoader, TensorDataset
 
 
 class EntropyNetwork(nn.Module):
+
     """Small critic T(x) used by the DV bound."""
 
     def __init__(self, input_dim, hidden_dim, out_dim=1):
@@ -26,14 +31,73 @@ class EntropyNetwork(nn.Module):
             nn.Linear(input_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
             nn.GELU(),
-            nn.Linear(hidden_dim, max(hidden_dim // 2, 1)),
-            nn.LayerNorm(max(hidden_dim // 2, 1)),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
             nn.GELU(),
-            nn.Linear(max(hidden_dim // 2, 1), out_dim),
+            nn.Linear(hidden_dim, out_dim),
         )
 
     def forward(self, x):
         return self.net(x)
+
+
+class TC_Estimator(object):
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def dv_bound(self, x):
+        pass
+
+    def train_step(self, head_outputs):
+        pass
+
+
+class TCEstimator1(TC_Estimator):
+
+    def __init__(self, d, hidden_dim=64, lr=1e-3, device="cpu"):
+        self.d, self.device = d, device
+        self.Net = nn.Sequential(
+            nn.Linear(d, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, 1),
+        ).to(device)
+        self.opt = torch.optim.Adam(self.Net.parameters(), lr=lr)
+
+    @staticmethod
+    def product_of_marginals(x):
+        n, d = x.shape
+        # independent permutation of each column
+        idx = torch.stack([torch.randperm(n, device=x.device) for _ in range(d)], dim=1)
+        return torch.gather(x, 0, idx)
+
+    def dv_bound(self, x):
+        x = x.reshape(x.shape[0], -1).to(self.device)
+        x_prod = self.product_of_marginals(x)
+        t_joint = self.Net(x)
+        t_prod = self.Net(x_prod)
+        n = t_prod.shape[0]
+        log_mean_exp = torch.logsumexp(t_prod, dim=0) - log(n)  # stable
+        return t_joint.mean() - log_mean_exp.squeeze()
+
+    def train_step(self, x):
+        self.opt.zero_grad()
+        loss = -self.dv_bound(x)
+        loss.backward()
+        self.opt.step()
+        return -loss.item()   # current lower bound on TC (in nats)
+
+    def to(self, device):
+        self.Net.to(device)
+        return self
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(d={self.d}, Net={self.Net})"
+
+    def __call__(self, x):
+        return self.Net(x).mean()
+
+
 
 
 def _permute_independently(x: torch.Tensor) -> torch.Tensor:
@@ -45,7 +109,7 @@ def _permute_independently(x: torch.Tensor) -> torch.Tensor:
     return torch.gather(x, 0, idx)
 
 
-class TotalCorrelationEstimator:
+class TotalCorrelationEstimator(TC_Estimator):
     """Differentiable lower bound on TC(h_1, ..., h_d).
 
     ``total_correlation`` keeps gradients w.r.t. its input, so it can be used
@@ -118,7 +182,7 @@ class TotalCorrelationEstimator:
         self.buffer[idx] = samples
 
     # ------------------------------------------------------------------- TC
-    def total_correlation(self, x: torch.Tensor) -> torch.Tensor:
+    def dv_bound(self, x: torch.Tensor) -> torch.Tensor:
         x = x.reshape(x.shape[0], -1).to(self.device)
         if x.shape[1] != self.d:
             raise ValueError(f"expected {self.d} head output(s), got {x.shape[1]}")
@@ -134,7 +198,7 @@ class TotalCorrelationEstimator:
         x = x.detach().to(self.device)
         self.set_requires_grad(True)
         self.optimizer.zero_grad(set_to_none=True)
-        loss = -self.total_correlation(x)
+        loss = -self.dv_bound(x)
         loss.backward()
         self.optimizer.step()
         return -loss.item()  # positive when the bound is positive
