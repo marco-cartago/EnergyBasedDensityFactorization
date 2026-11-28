@@ -49,7 +49,7 @@ class TC_Estimator(object):
     def dv_bound(self, x):
         pass
 
-    def train_step(self, head_outputs):
+    def train_step(self, x):
         pass
 
 
@@ -64,8 +64,7 @@ class TCEstimator1(TC_Estimator):
         ).to(device)
         self.opt = torch.optim.Adam(self.Net.parameters(), lr=lr)
 
-    @staticmethod
-    def product_of_marginals(x):
+    def product_of_marginals(self, x):
         n, d = x.shape
         # independent permutation of each column
         idx = torch.stack([torch.randperm(n, device=x.device) for _ in range(d)], dim=1)
